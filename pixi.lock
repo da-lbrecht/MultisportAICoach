@@ -5,6 +5,8 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     indexes:
     - https://pypi.org/simple
+    options:
+      pypi-prerelease-mode: if-necessary-or-explicit
     packages:
       linux-64:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/_libgcc_mutex-0.1-conda_forge.tar.bz2
@@ -1031,7 +1033,6 @@ packages:
   version: 2.2.0
   sha256: 5e92a58ac3ef493a6bbf7e1260bdc3e5906042e9c615f769f65d3e4ff531ceac
   requires_python: '>=3.13'
-  editable: true
 - pypi: https://files.pythonhosted.org/packages/91/dc/9e0b1eee113fedfefd6577de45205e33505fcdc1520d4d28ee4c339e9862/garminconnect-0.2.38-py3-none-any.whl
   name: garminconnect
   version: 0.2.38
