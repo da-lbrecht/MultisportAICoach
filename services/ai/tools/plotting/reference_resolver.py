@@ -43,21 +43,15 @@ class PlotReferenceResolver:
             return self._wrap_plot_html(plot_id, plot_html)
 
         plot_metadata = self.plot_storage.get_plot(plot_id)
-        logger.warning("Plot %s not found, using fallback", plot_id)
+        logger.warning("Plot %s unavailable, removing unresolved reference", plot_id)
 
         if plot_metadata:
-            return f"""
-<div class="plot-fallback" style="padding: 20px; border: 2px dashed #ccc; margin: 10px 0; text-align: center; background-color: #f9f9f9;">
-    <p><strong>Plot Unavailable: {plot_metadata.description}</strong></p>
-    <p><em>Created by {plot_metadata.agent_name}</em></p>
-    <p>Plot ID: {plot_id}</p>
-</div>"""
+            return (
+                f"<!-- Plot reference removed: {plot_id} "
+                f"(unavailable HTML for '{plot_metadata.description}') -->"
+            )
 
-        return f"""
-<div class="plot-error" style="padding: 20px; border: 2px solid #ff6b6b; margin: 10px 0; text-align: center; background-color: #ffe0e0;">
-    <p><strong>Plot Not Found</strong></p>
-    <p>Plot ID: {plot_id}</p>
-</div>"""
+        return f"<!-- Plot reference removed: {plot_id} (not found in storage) -->"
 
     def _wrap_plot_html(self, plot_id: str, plot_html: str) -> str:
         return f"""

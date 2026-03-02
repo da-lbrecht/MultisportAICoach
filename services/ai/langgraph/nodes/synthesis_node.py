@@ -7,6 +7,7 @@ from services.ai.langgraph.state.training_analysis_state import TrainingAnalysis
 from services.ai.langgraph.utils.output_helper import extract_expert_output
 from services.ai.model_config import ModelSelector
 from services.ai.tools.plotting import PlotStorage
+from services.ai.tools.plotting.plot_storage import PlotMetadata
 from services.ai.utils.retry_handler import AI_ANALYSIS_CONFIG, retry_with_backoff
 
 from .tool_calling_helper import handle_tool_calling_in_node
@@ -28,6 +29,9 @@ Create comprehensive, actionable insights by synthesizing multiple data streams.
 SYNTHESIS_PLOT_INSTRUCTIONS = """
 ## Plot Integration
 - Include plot references as `[PLOT:plot_id]` in your text.
+- Use ONLY IDs from the provided `Available Plots` list.
+- Never invent human-readable IDs (e.g., `training_load_progression`).
+- If no relevant plot exists, do not add any `[PLOT:...]` reference.
 - These will become interactive charts."""
 
 SYNTHESIS_USER_PROMPT_BASE = """Synthesize the expert analyses into a comprehensive athlete report.
@@ -49,6 +53,7 @@ SYNTHESIS_USER_PROMPT_BASE = """Synthesize the expert analyses into a comprehens
 - Competitions: ```json {competitions} ```
 - Date: ```json {current_date} ```
 - Style: ```markdown {style_guide} ```
+- Available Plots: ```json {available_plots} ```
 
 ## Task
 1. **Integrate**: Connect load (metrics), execution (activity), and response (physiology).
@@ -73,6 +78,15 @@ async def synthesis_node(state: TrainingAnalysisState) -> dict[str, list | str]:
 
     try:
         plot_storage = PlotStorage(state["execution_id"])
+        for plot_id, plot_data in state.get("plot_storage_data", {}).items():
+            plot_storage.plots[plot_id] = PlotMetadata(
+                plot_id=plot_data["plot_id"],
+                description=plot_data["description"],
+                agent_name=plot_data["agent_name"],
+                created_at=datetime.fromisoformat(plot_data["created_at"]),
+                html_content=plot_data["html_content"],
+                data_summary=plot_data["data_summary"],
+            )
         plotting_enabled = state.get("plotting_enabled", False)
 
         logger.info(
@@ -99,6 +113,7 @@ async def synthesis_node(state: TrainingAnalysisState) -> dict[str, list | str]:
                             competitions=json.dumps(state["competitions"], indent=2),
                             current_date=json.dumps(state["current_date"], indent=2),
                             style_guide=state["style_guide"],
+                            available_plots=json.dumps(plot_storage.list_available_plots(), indent=2),
                         ) + (SYNTHESIS_USER_PLOT_INSTRUCTIONS if plotting_enabled else "")
                     )},
                 ],

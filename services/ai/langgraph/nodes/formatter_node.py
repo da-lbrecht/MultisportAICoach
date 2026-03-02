@@ -38,6 +38,7 @@ Return ONLY the complete HTML document."""
 FORMATTER_PLOT_INSTRUCTIONS = """
 ## Plot Integration
 - **Preserve**: Keep `[PLOT:plot_id]` references EXACTLY as written.
+- **No invention**: Do NOT add new `[PLOT:...]` references and do NOT rename any plot IDs.
 - **Layout**: Treat them as major visual blocks (full-width).
 - **Spacing**: Ensure CSS provides vertical space (~500px) for the interactive charts that will replace them."""
 

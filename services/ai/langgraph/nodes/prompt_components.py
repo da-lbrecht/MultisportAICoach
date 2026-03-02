@@ -64,7 +64,8 @@ def get_plotting_instructions(agent_name: str) -> str:
     return f"""
 ## Visualization Rules
 - **Constraint**: Create plots ONLY for unique insights not visible in standard Garmin reports. Max 2 plots.
-- **Reference**: You MUST reference each plot EXACTLY ONCE in your text using `[PLOT:{agent_name}_TIMESTAMP_ID]`.
+- **Reference**: After a successful plotting tool call, use the returned `plot_id` EXACTLY as `[PLOT:<returned_plot_id>]`.
+- **Never invent IDs**: Do NOT create human-readable IDs like `training_load_progression` and do NOT use placeholders.
 - **Placement**: Place the reference where it best supports your analysis. Do not repeat it."""
 
 
