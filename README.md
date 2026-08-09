@@ -1,4 +1,4 @@
-# garmin-ai-coach — 🏊‍♂️🚴‍♂️🏃‍♂️ Your AI Endurance Coach
+# MultisportAICoach — 🏊‍♂️🚴‍♂️🏃‍♂️ LLM-based training planner for triathlon activities with Garmin integration
 
 > CLI-first tool that turns Garmin Connect data into:
 >
