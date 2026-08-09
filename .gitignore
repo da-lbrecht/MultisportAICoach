@@ -37,6 +37,7 @@ env/
 
 # Intermediate AI results
 data/
+data_lib_*/
 
 # IDE
 .idea/

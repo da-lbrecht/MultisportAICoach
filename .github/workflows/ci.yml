@@ -24,9 +24,6 @@ jobs:
       - name: Install dependencies
         run: pixi install -q
 
-      - name: Install dependencies
-        run: pixi install -q
-
       - name: Lint (ruff)
         run: pixi run lint-ruff
 
