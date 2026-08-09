@@ -40,13 +40,17 @@ Options:
 Notes:
 - If `credentials.password` is not provided in the config, you will be securely prompted at runtime.
 - The CLI sets AI_MODE from `extraction.ai_mode` automatically for downstream components.
+- If `extraction.equipment_annotation_enabled: true`, right after Garmin import the CLI lists
+  every swim/bike session it just pulled and lets you type a note for each one (Enter to skip) —
+  e.g. wetsuit vs jammers, open water vs pool, which bike. Garmin doesn't record equipment, so
+  this is fed directly into both the analysis and planning context for that run.
 
 ## Configuration
 
 Top-level keys:
 - athlete: name, email
 - context: analysis, planning (freeform text; the AI will follow these constraints)
-- extraction: activities_days, metrics_days, ai_mode ("development" | "standard" | "cost_effective" | "pro")
+- extraction: activities_days, metrics_days, ai_mode ("development" | "standard" | "cost_effective" | "anthropic_pro" | "pro"), hitl_enabled, skip_synthesis, enable_plotting, include_long_term_trends, long_term_range, long_term_interval, equipment_annotation_enabled
 - competitions: list of {name, date (YYYY-MM-DD), race_type, priority (A/B/C), target_time (HH:MM:SS)}
 - output: directory
 - credentials: password (optional; leave empty for interactive prompt)
@@ -147,7 +151,8 @@ Validation tips:
 Generated files (in output.directory, default `./data`):
 - analysis.html — Comprehensive performance analysis
 - planning.html — Detailed weekly training plan
-- metrics_result.md, activity_result.md, physiology_result.md, season_plan.md — Intermediate artifacts
+- metrics_expert.json, activity_expert.json, physiology_expert.json — structured expert outputs
+- season_plan.md, weekly_plan.md — intermediate planning artifacts
 - summary.json — Metadata and cost tracking with fields:
   - athlete, analysis_date, competitions
   - total_cost_usd, total_tokens
@@ -169,6 +174,7 @@ Provider selection depends on AI mode mapping:
   - `standard` → `gpt-5` / `gpt-5-search` (OpenAI, with web search for experts/planners)
   - `development` → `claude-4` (Anthropic)
   - `cost_effective` → `claude-3-haiku` (Anthropic)
+  - `anthropic_pro` → `claude-haiku-4-5` (summarizers/formatters) / `claude-opus` (experts) / `claude-fable-5` (synthesis/planning) — Anthropic-only, no OpenAI key needed
   - `pro` → `gpt-5-search` / `gpt-5.2-pro-search` (OpenAI, with gpt-5.2-pro-search for experts and planners)
     - ⚠️ **WARNING**: PRO mode can incur high costs (>$10 per run depending on data volume and configuration)
 - Model IDs and providers are declared in [`python.ModelSelector.CONFIGURATIONS`](../services/ai/model_config.py:22), and the provider API key is auto-selected in [`python.ModelSelector.get_llm()`](../services/ai/model_config.py:61).

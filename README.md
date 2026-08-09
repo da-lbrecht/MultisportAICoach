@@ -35,6 +35,8 @@ Open the generated reports:
 - `./data/analysis.html`
 - `./data/planning.html`
 
+Pass `--output-dir PATH` to override `output.directory` from the config for a single run. Full CLI reference: [`cli/README.md`](cli/README.md).
+
 ---
 
 ## ✨ What You Get
@@ -45,8 +47,13 @@ Open the generated reports:
 - Actionable recommendations grouped by domain (load, running, cycling, recovery)
 - Season strategy (typically 12–24 weeks) + compact 4-week plan (28 days)
 - Optional: HITL questions (`hitl_enabled: true`)
+- Optional: interactive equipment annotation (`equipment_annotation_enabled: true`) — after Garmin import, add notes (wetsuit/jammers, open water/pool, which bike) to individual swim/bike sessions, since Garmin doesn't record equipment
+- Optional: skip synthesis/formatting nodes (`skip_synthesis: true`) to save tokens
+- Optional: long-term trend context (VO2 max history, chronic load over ~12 months)
 - Optional: competition import from Outside (BikeReg/RunReg/TriReg/SkiReg)
-- Optional: LangSmith tracing + cost tracking (`LANGSMITH_API_KEY`)
+- Optional: live web search on expert/planner nodes in `standard` and `pro` modes (OpenAI hosted search)
+- Built-in token & cost tracking (no LangSmith key needed)
+- Optional: LangSmith trace observability (`LANGSMITH_API_KEY`)
 
 ---
 
@@ -118,10 +125,15 @@ context:
 extraction:
   activities_days: 21
   metrics_days: 56
-  ai_mode: "standard"          # development | standard | cost_effective | pro
+  ai_mode: "standard"          # development | standard | cost_effective | anthropic_pro | pro
   enable_plotting: false
   hitl_enabled: true
-  skip_synthesis: false
+  skip_synthesis: false         # true = skip synthesis + formatter nodes (saves tokens)
+  include_long_term_trends: true
+  long_term_range: 360          # days of history for VO2 max / chronic load trends
+  long_term_interval: 7
+  equipment_annotation_enabled: false  # true = interactive prompt after Garmin import to
+                                        # annotate swim/bike sessions with equipment used
 
 competitions:
   - name: "Target Race"
@@ -168,14 +180,22 @@ Set at least one provider API key (e.g. in `.env`):
 
 The run’s `ai_mode` comes from `extraction.ai_mode` (the CLI exports it to `AI_MODE` internally).
 
-Defaults (role→model mapping) live in:
+| Mode | Summarizers & Formatters | Expert Nodes | Synthesis & Planners | Notes |
+|------|--------------------------|--------------|----------------------|-------|
+| `development` | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-sonnet-4-6 | Fast iteration / testing |
+| `standard` | gpt-5.2 | gpt-5.2 | gpt-5.2 | Default balanced mode |
+| `cost_effective` | claude-haiku-4-5 | claude-haiku-4-5 | claude-haiku-4-5 | Budget-conscious |
+| `anthropic_pro` | claude-haiku-4-5 | claude-opus-4-8 | claude-fable-5 | Anthropic-only, no OpenAI key needed |
+| `pro` | gpt-5.2 | gpt-5.2-pro | gpt-5.2 / gpt-5.2-pro | ⚠️ High cost (>$10/run) |
+
+Full role→model mapping lives in:
 
 - [`services/ai/ai_settings.py`](services/ai/ai_settings.py)
 - [`services/ai/model_config.py`](services/ai/model_config.py)
 
 Optional:
 
-- `LANGSMITH_API_KEY` enables LangSmith tracing / cost tracking.
+- `LANGSMITH_API_KEY` enables LangSmith trace observability. Token & cost tracking works without it (built-in callback handler).
 
 ---
 
@@ -228,6 +248,10 @@ garmin-ai-coach/
 </details>
 
 ---
+
+## 🙏 Acknowledgments
+
+This project started as a fork of an open-source LLM-assisted training planner originally created by Zett, and has since been substantially extended and refined.
 
 ## 🤝 Contributing
 
