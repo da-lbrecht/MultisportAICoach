@@ -106,29 +106,39 @@ class ModelSelector:
         ),
         # Anthropic Models
         "claude-4": ModelConfiguration(
-            name="claude-sonnet-4-5-20250929",
+            name="claude-sonnet-4-6",
             base_url="https://api.anthropic.com",
-            openrouter_name="anthropic/claude-sonnet-4.5",
+            openrouter_name="anthropic/claude-sonnet-4.6",
         ),
         "claude-4-thinking": ModelConfiguration(
-            name="claude-sonnet-4-5-20250929",
+            name="claude-sonnet-4-6",
             base_url="https://api.anthropic.com",
-            openrouter_name="anthropic/claude-sonnet-4.5",
+            openrouter_name="anthropic/claude-sonnet-4.6",
         ),
         "claude-opus": ModelConfiguration(
-            name="claude-opus-4-1-20250805",
+            name="claude-opus-4-8",
             base_url="https://api.anthropic.com",
-            openrouter_name="anthropic/claude-opus-4.1",
+            openrouter_name="anthropic/claude-opus-4.8",
         ),
         "claude-opus-thinking": ModelConfiguration(
-            name="claude-opus-4-1-20250805",
+            name="claude-opus-4-8",
             base_url="https://api.anthropic.com",
-            openrouter_name="anthropic/claude-opus-4.1",
+            openrouter_name="anthropic/claude-opus-4.8",
         ),
         "claude-3-haiku": ModelConfiguration(
-            name="claude-3-haiku-20240307",
+            name="claude-haiku-4-5-20251001",
             base_url="https://api.anthropic.com",
-            openrouter_name="anthropic/claude-3-haiku",
+            openrouter_name="anthropic/claude-haiku-4-5",
+        ),
+        "claude-haiku-4-5": ModelConfiguration(
+            name="claude-haiku-4-5-20251001",
+            base_url="https://api.anthropic.com",
+            openrouter_name="anthropic/claude-haiku-4-5",
+        ),
+        "claude-fable-5": ModelConfiguration(
+            name="claude-fable-5",
+            base_url="https://api.anthropic.com",
+            openrouter_name="anthropic/claude-fable-5",
         ),
         # DeepSeek Models
         "deepseek-chat": ModelConfiguration(
@@ -152,9 +162,9 @@ class ModelSelector:
 
     MODEL_CONFIGS: dict[str, dict[str, Any]] = {
         "claude-opus-thinking": {
-            "max_tokens": 32000,
-            "thinking": {"type": "enabled", "budget_tokens": 16000},
-            "log": "Using extended thinking mode for {role} (max_tokens: 32000, budget_tokens: 16000)",
+            "max_tokens": 128000,
+            # Opus 4.8 has adaptive thinking always on; extended thinking API param removed.
+            "log": "Using Opus 4.8 for {role} (max_tokens: 128000, adaptive thinking always on)",
         },
         "claude-4-thinking": {
             "max_tokens": 64000,
@@ -166,8 +176,12 @@ class ModelSelector:
             "log": "Using extended output tokens for {role} (max_tokens: 64000)",
         },
         "claude-opus": {
-            "max_tokens": 32000,
-            "log": "Using extended output tokens for {role} (max_tokens: 32000)",
+            "max_tokens": 128000,
+            "log": "Using extended output tokens for {role} (max_tokens: 128000)",
+        },
+        "claude-fable-5": {
+            "max_tokens": 128000,
+            "log": "Using Claude Fable 5 for {role} (max_tokens: 128000, adaptive thinking always on)",
         },
         "gpt-5": {
             "use_responses_api": True,

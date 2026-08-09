@@ -9,9 +9,9 @@
 ## AI & LLM Providers
 
 ### Supported Models
-- **Anthropic Claude** - claude-sonnet-4, claude-opus-4, claude-3-haiku (with extended thinking support)
-- **OpenAI** - gpt-5, gpt-5.2-pro, gpt-5-mini, gpt-5-search, gpt-5.2-pro-search (with web search), gpt-4o, o1, o3, o4-mini
-- **OpenRouter/DeepSeek** - deepseek-chat, deepseek-r1, deepseek-v3.2-exp (with reasoning support)
+- **Anthropic Claude** - claude-fable-5, claude-opus-4-8, claude-sonnet-4-6, claude-haiku-4-5 (adaptive thinking on flagship models)
+- **OpenAI** - gpt-5.2, gpt-5.2-pro, gpt-5-mini (with web search), gpt-4o, o3, o4-mini
+- **OpenRouter** - DeepSeek (deepseek-chat, deepseek-r1, deepseek-v3.2), Google Gemini (gemini-2.5-pro), xAI Grok (grok-4)
 
 ### Model Assignment Strategy
 
@@ -30,14 +30,15 @@ The system uses a **role-based model assignment strategy** that optimizes model 
 - **Synthesis & Coordination**: Uses **high-fidelity models** to ensure consistent, high-quality final outputs.
 
 **Operation Modes:**
-- **STANDARD (Production)**: Balances reasoning depth with performance, utilizing "thinking" models for complex tasks and faster models for formatting.
-- **COST_EFFECTIVE**: Prioritizes budget-friendly models (e.g., smaller, faster variants) across all nodes.
-- **DEVELOPMENT**: optimized for fast iteration and testing cycles.
-- **PRO**: Maximum performance mode using GPT-5.2 Pro with web search for expert nodes (metrics, physiology, activity) and planners (season, weekly), with standard GPT-5.2 for other nodes. ⚠️ **High cost mode** (>$10 per run depending on data volume).
+- **STANDARD (Production)**: GPT-5.2 across all roles, with web-search-enabled variants for expert and planner nodes.
+- **COST_EFFECTIVE**: claude-haiku-4-5 across all roles — fastest and cheapest.
+- **DEVELOPMENT**: claude-sonnet-4-6 across all roles — good balance of quality and speed for iteration.
+- **ANTHROPIC_PRO**: Anthropic-only (no OpenAI key required). claude-haiku-4-5 for summarizers/formatters, claude-opus-4-8 for expert analysis, claude-fable-5 for synthesis and planning.
+- **PRO**: Maximum performance — GPT-5.2 Pro with web search for expert nodes and planners. ⚠️ **High cost mode** (>$10 per run depending on data volume).
 
 ### AI Orchestration & Observability
 - **LangGraph 1.0+** - State-based workflow orchestration ✅ **ACTIVE**
-- **LangSmith 0.4.37+** - AI observability and cost tracking ✅ **ACTIVE**
+- **LangSmith 0.4.37+** - Optional trace observability (`LANGSMITH_API_KEY`); token/cost tracking is built-in via LangChain callback handler
 - **LangChain 1.0+** - LLM framework and tool integrations
 - **LangChain-Anthropic 1.0+** - Anthropic Claude integration
 - **LangChain-OpenAI 1.0+** - OpenAI integration

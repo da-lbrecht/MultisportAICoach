@@ -19,6 +19,7 @@ class AIMode(Enum):
     COST_EFFECTIVE = "cost_effective"
     DEVELOPMENT = "development"
     PRO = "pro"
+    ANTHROPIC_PRO = "anthropic_pro"
 
 
 @dataclass

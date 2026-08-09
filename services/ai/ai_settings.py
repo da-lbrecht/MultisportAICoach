@@ -61,6 +61,18 @@ class AISettings:
                 AgentRole.WORKOUT: "gpt-5.2-pro-search",
                 AgentRole.SEASON_PLANNER: "gpt-5.2-pro-search",
             },
+            # Anthropic-only mode: Fable 5 for synthesis/planning, Opus 4.8 for expert analysis,
+            # Haiku 4.5 for fast summarization and formatting.
+            AIMode.ANTHROPIC_PRO: {
+                AgentRole.SUMMARIZER: "claude-haiku-4-5",
+                AgentRole.FORMATTER: "claude-haiku-4-5",
+                AgentRole.METRICS_EXPERT: "claude-opus",
+                AgentRole.PHYSIOLOGY_EXPERT: "claude-opus",
+                AgentRole.ACTIVITY_EXPERT: "claude-opus",
+                AgentRole.SYNTHESIS: "claude-fable-5",
+                AgentRole.WORKOUT: "claude-opus",
+                AgentRole.SEASON_PLANNER: "claude-fable-5",
+            },
         }
     )
 
