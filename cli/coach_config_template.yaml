@@ -20,12 +20,16 @@ context:
 extraction:
   activities_days: 28      # How many days of activities to extract
   metrics_days: 56         # How many days of metrics to extract
-  ai_mode: "standard"      # Overrides .env AI_MODE for coach-cli runs; one of: "development", "standard", "cost_effective", "pro"
+  ai_mode: "standard"      # Overrides .env AI_MODE for coach-cli runs; one of: "development", "standard", "cost_effective", "pro", "anthropic_pro"
                            # ⚠️  WARNING: "pro" mode can incur high costs (>$10 per run depending on data volume)
   enable_plotting: false   # Enable AI-generated plots (default: false to save costs). Set to true for visual insights.
   hitl_enabled: true       # Enable Human-in-the-Loop interactions - agents can ask questions during analysis (default: true)
   skip_synthesis: false    # Skip synthesis and formatter nodes (default: false). Set to true to save tokens when you only need the weekly plan.
-  
+  equipment_annotation_enabled: false  # Interactive prompt after Garmin import: add equipment notes (wetsuit/jammers,
+                                        # open water/pool, which bike, etc.) to individual swim/bike sessions. Garmin
+                                        # doesn't record equipment, so this is the only way to get it to the coach.
+                                        # Runs in the terminal right after data extraction; press Enter to skip any session.
+
   # Long-term trends (optional - provides historical context for VO2 max and training load)
   include_long_term_trends: true  # Include long-term trends in analysis (default: true)
   long_term_range: 360     # How many days to look back for long-term trends (default: 360)

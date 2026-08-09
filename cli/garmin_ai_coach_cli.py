@@ -20,7 +20,7 @@ from services.ai.langgraph.workflows.planning_workflow import (
     run_complete_analysis_and_planning,
 )
 from services.ai.utils.plan_storage import FilePlanStorage
-from services.garmin import ExtractionConfig, TriathlonCoachDataExtractor
+from services.garmin import Activity, ExtractionConfig, GarminData, TriathlonCoachDataExtractor
 from services.outside.client import OutsideApiGraphQlClient
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -64,13 +64,18 @@ class ConfigParser:
         )
 
     def get_extraction_config(self) -> dict[str, Any]:
+        extraction = self.config.get("extraction", {})
         return {
-            "activities_days": self.config.get("extraction", {}).get("activities_days", 7),
-            "metrics_days": self.config.get("extraction", {}).get("metrics_days", 14),
-            "ai_mode": self.config.get("extraction", {}).get("ai_mode", "development"),
-            "enable_plotting": self.config.get("extraction", {}).get("enable_plotting", False),
-            "hitl_enabled": self.config.get("extraction", {}).get("hitl_enabled", True),
-            "skip_synthesis": self.config.get("extraction", {}).get("skip_synthesis", False),
+            "activities_days": extraction.get("activities_days", 7),
+            "metrics_days": extraction.get("metrics_days", 14),
+            "ai_mode": extraction.get("ai_mode", "development"),
+            "enable_plotting": extraction.get("enable_plotting", False),
+            "hitl_enabled": extraction.get("hitl_enabled", True),
+            "skip_synthesis": extraction.get("skip_synthesis", False),
+            "include_long_term_trends": extraction.get("include_long_term_trends", True),
+            "long_term_range": extraction.get("long_term_range", 360),
+            "long_term_interval": extraction.get("long_term_interval", 7),
+            "equipment_annotation_enabled": extraction.get("equipment_annotation_enabled", False),
         }
 
     def get_competitions(self) -> list[dict[str, Any]]:
@@ -117,6 +122,70 @@ def fetch_outside_competitions_from_config(config: dict[str, Any]) -> list[dict[
         aggregate.extend(client.get_competitions(legacy_all))
 
     return aggregate
+
+
+EQUIPMENT_RELEVANT_KEYWORDS = ("swim", "cycl", "bik", "ride")
+
+
+def _is_equipment_relevant(activity_type: str | None) -> bool:
+    if not activity_type:
+        return False
+    lowered = activity_type.lower()
+    return any(keyword in lowered for keyword in EQUIPMENT_RELEVANT_KEYWORDS)
+
+
+def _describe_activity(activity: Activity) -> str:
+    date = (activity.start_time or "")[:10]
+    sport = activity.activity_type or "activity"
+    name = activity.activity_name or sport
+    distance_km = (
+        f"{activity.summary.distance / 1000:.1f} km"
+        if activity.summary and activity.summary.distance
+        else ""
+    )
+    return f"{date}  {sport:<14} {name} {distance_km}".strip()
+
+
+def _render_equipment_log(entries: list[dict[str, str]]) -> str:
+    if not entries:
+        return ""
+
+    lines = [
+        "EQUIPMENT LOG (equipment is not recorded by Garmin — provided directly by the "
+        "athlete for this run; use it to correctly interpret pace/power/HR per session "
+        "and to prescribe gear-appropriate targets):"
+    ]
+    for entry in entries:
+        lines.append(f"- {entry['date']} ({entry['sport']}): {entry['notes']}")
+
+    return "\n".join(lines)
+
+
+def collect_equipment_annotations(garmin_data: GarminData) -> str:
+    activities = garmin_data.recent_activities or []
+    relevant = [a for a in activities if _is_equipment_relevant(a.activity_type)]
+
+    if not relevant:
+        return ""
+
+    print(f"\n{'='*60}")
+    print(f"EQUIPMENT NOTES — {len(relevant)} swim/bike session(s) imported from Garmin")
+    print("Garmin doesn't record equipment. Add a note for any session where it matters")
+    print("(e.g. wetsuit vs jammers, open water vs pool, which bike) — Enter to skip.")
+    print(f"{'='*60}")
+
+    entries: list[dict[str, str]] = []
+    for activity in relevant:
+        notes = input(f"  {_describe_activity(activity)}\n    Notes (Enter to skip): ").strip()
+        if notes:
+            entries.append({
+                "date": (activity.start_time or "")[:10],
+                "sport": activity.activity_type or "activity",
+                "notes": notes,
+            })
+
+    print(f"{'='*60}\n")
+    return _render_equipment_log(entries)
 
 
 def _save_html_outputs(output_dir: Path, result: dict[str, Any]) -> list[str]:
@@ -180,7 +249,7 @@ def _save_plan_outputs(output_dir: Path, result: dict[str, Any]) -> list[str]:
     return files_generated
 
 
-async def run_analysis_from_config(config_path: Path) -> None:
+async def run_analysis_from_config(config_path: Path, output_dir_override: Path | None = None) -> None:
     config_parser = ConfigParser(config_path)
     athlete_name, email = config_parser.get_athlete_info()
     analysis_context, planning_context = config_parser.get_contexts()
@@ -191,7 +260,7 @@ async def run_analysis_from_config(config_path: Path) -> None:
     if outside_competitions:
         competitions.extend(outside_competitions)
 
-    output_dir = config_parser.get_output_directory()
+    output_dir = output_dir_override or config_parser.get_output_directory()
 
     logger.info("Starting analysis for %s", athlete_name)
     logger.info("Output directory: %s", output_dir)
@@ -218,10 +287,18 @@ async def run_analysis_from_config(config_path: Path) -> None:
             metrics_range=extraction_settings["metrics_days"],
             include_detailed_activities=True,
             include_metrics=True,
+            include_long_term_trends=extraction_settings["include_long_term_trends"],
+            long_term_range=extraction_settings["long_term_range"],
+            long_term_interval=extraction_settings["long_term_interval"],
         )
 
         garmin_data = extractor.extract_data(extraction_config)
         logger.info("Data extraction completed")
+
+        if extraction_settings.get("equipment_annotation_enabled", False):
+            if equipment_log := collect_equipment_annotations(garmin_data):
+                analysis_context = f"{analysis_context}\n\n{equipment_log}".strip()
+                planning_context = f"{planning_context}\n\n{equipment_log}".strip()
 
         now = datetime.now()
         plotting_enabled = extraction_settings.get("enable_plotting", False)
@@ -328,7 +405,7 @@ def main():
 
     if args.config:
         try:
-            asyncio.run(run_analysis_from_config(args.config))
+            asyncio.run(run_analysis_from_config(args.config, args.output_dir))
         except KeyboardInterrupt:
             logger.info("❌ Analysis cancelled by user")
         except Exception as e:
