@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from .langsmith_cost_extractor import LangSmithCostExtractor, WorkflowCostSummary
+from .langsmith_cost_extractor import LangSmithCostExtractor, TokenUsageCallbackHandler, WorkflowCostSummary
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,8 @@ class WorkflowCostTracker:
 
         final_state = dict(initial_state) if initial_state else {}
 
+        token_tracker = TokenUsageCallbackHandler()
+
         try:
             logger.info("Starting workflow execution with deterministic root_run_id: %s", root_run_id)
 
@@ -61,6 +63,8 @@ class WorkflowCostTracker:
                     "thread_id": thread_id,
                     "project": self.project_name,
                 },
+                # Propagate to all llm.ainvoke() calls inside nodes via LangChain contextvars
+                "callbacks": [token_tracker],
             }
 
             if thread_id:
@@ -95,27 +99,58 @@ class WorkflowCostTracker:
             ).total_seconds()
 
             try:
-                logger.info("Extracting costs for deterministic trace: %s", execution.trace_id)
-                cost_summary = self.cost_extractor.extract_workflow_costs_by_trace(
-                    execution.trace_id, execution.execution_time_seconds
-                )
-                cost_summary.root_run_id = execution.root_run_id
+                # Primary: callback-based extraction (works without LangSmith)
+                if token_tracker.total_tokens > 0:
+                    logger.info(
+                        "Callback captured %d tokens across %d LLM call(s)",
+                        token_tracker.total_tokens,
+                        token_tracker.call_count,
+                    )
+                    cost_summary = self.cost_extractor.extract_costs_from_callback(
+                        token_tracker, execution.execution_time_seconds
+                    )
+                    cost_summary.trace_id = execution.trace_id
+                    cost_summary.root_run_id = execution.root_run_id
+                else:
+                    # Fallback: try LangSmith (only useful when LANGSMITH_API_KEY is set)
+                    logger.info("Callback captured 0 tokens — trying LangSmith trace: %s", execution.trace_id)
+                    cost_summary = self.cost_extractor.extract_workflow_costs_by_trace(
+                        execution.trace_id, execution.execution_time_seconds
+                    )
+                    cost_summary.root_run_id = execution.root_run_id
+                    if cost_summary.total_tokens == 0:
+                        logger.warning("Both callback and LangSmith returned 0 tokens")
+
                 execution.cost_summary = cost_summary
 
                 if progress_callback and cost_summary.total_cost_usd > 0:
                     await progress_callback("workflow_complete", cost_summary)
 
                 logger.info(
-                    "Workflow execution complete: $%.4f (%d tokens)",
+                    "Workflow execution complete: $%.4f (%d tokens, %d LLM calls)",
                     cost_summary.total_cost_usd,
                     cost_summary.total_tokens,
+                    token_tracker.call_count,
                 )
 
             except Exception as e:
                 logger.error("Error extracting costs for trace %s: %s", execution.trace_id, e)
-                execution.cost_summary = self.cost_extractor._zero_workflow_summary(
-                    execution.trace_id
-                )
+                if token_tracker.total_tokens > 0:
+                    try:
+                        cost_summary = self.cost_extractor.extract_costs_from_callback(
+                            token_tracker, execution.execution_time_seconds
+                        )
+                        cost_summary.trace_id = execution.trace_id
+                        cost_summary.root_run_id = execution.root_run_id
+                        execution.cost_summary = cost_summary
+                    except Exception:
+                        execution.cost_summary = self.cost_extractor._zero_workflow_summary(
+                            execution.trace_id
+                        )
+                else:
+                    execution.cost_summary = self.cost_extractor._zero_workflow_summary(
+                        execution.trace_id
+                    )
 
         except Exception as e:
             logger.error("Error in workflow execution: %s", e)

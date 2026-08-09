@@ -1,14 +1,82 @@
 import logging
 import os
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.outputs import LLMResult
 from langsmith import Client
 from requests import HTTPError
 
 logger = logging.getLogger(__name__)
+
+# Pricing per 1 million tokens (USD). Update as provider rates change.
+_MODEL_PRICING_USD_PER_M: dict[str, dict[str, float]] = {
+    # Anthropic — current models (June 2026)
+    "claude-fable-5": {"input": 10.00, "output": 50.00},
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00},
+    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
+    # Anthropic — legacy (kept for historical runs)
+    "claude-sonnet-4-5-20250929": {"input": 3.00, "output": 15.00},
+    "claude-opus-4-1-20250805": {"input": 15.00, "output": 75.00},
+    "claude-3-haiku-20240307": {"input": 0.25, "output": 1.25},
+    # OpenAI
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4.1": {"input": 2.00, "output": 8.00},
+    "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "o3": {"input": 10.00, "output": 40.00},
+    "o4-mini": {"input": 1.10, "output": 4.40},
+}
+
+
+class TokenUsageCallbackHandler(BaseCallbackHandler):
+    """LangChain callback handler that accumulates token usage across all LLM calls.
+
+    LangGraph propagates callbacks from the parent ``astream`` config into every
+    node's execution context via ``contextvars``.  Any ``llm.ainvoke()`` call made
+    inside a node will therefore trigger ``on_llm_end`` here — no node changes needed.
+    """
+
+    raise_error = False  # Prevent callback exceptions from crashing the workflow
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.call_count: int = 0
+        self._model_usage: dict[str, dict[str, int]] = {}
+        self._lock = threading.Lock()
+
+    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:  # noqa: D102
+        for gen_list in response.generations:
+            for gen in gen_list:
+                msg = getattr(gen, "message", None)
+                if msg is None:
+                    continue
+                usage = getattr(msg, "usage_metadata", None)
+                if not usage:
+                    continue
+                inp = int(usage.get("input_tokens", 0) or 0)
+                out = int(usage.get("output_tokens", 0) or 0)
+                rm = getattr(msg, "response_metadata", {}) or {}
+                model = rm.get("model") or rm.get("model_name", "")
+                with self._lock:
+                    self.input_tokens += inp
+                    self.output_tokens += out
+                    self.call_count += 1
+                    if model:
+                        entry = self._model_usage.setdefault(model, {"input": 0, "output": 0})
+                        entry["input"] += inp
+                        entry["output"] += out
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
 
 
 @dataclass
@@ -213,6 +281,71 @@ class LangSmithCostExtractor:
             logger.exception("Failed to extract costs from LangSmith run %s", run_id)
             return self._zero_cost_summary(run_id)
 
+    def extract_costs_from_messages(
+        self, messages: list, execution_time: float = 0.0
+    ) -> "WorkflowCostSummary":
+        """Extract token usage directly from LangChain AIMessage objects in the state.
+
+        This is the primary fallback when LangSmith is not configured or returns
+        no data. LangChain stores ``usage_metadata`` (input_tokens, output_tokens)
+        on every AIMessage, so this works with any provider without any external
+        service or API key.
+        """
+        total_input = 0
+        total_output = 0
+        total_cost = Decimal("0")
+
+        for msg in messages:
+            usage: dict | None = None
+            model = ""
+
+            # LangChain message object (live during streaming)
+            if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+                usage = msg.usage_metadata
+                rm = getattr(msg, "response_metadata", {}) or {}
+                model = rm.get("model") or rm.get("model_name", "")
+
+            # Serialised dict (e.g. from MemorySaver checkpoint)
+            elif isinstance(msg, dict) and msg.get("type") == "ai":
+                usage = msg.get("usage_metadata") or {}
+                rm = msg.get("response_metadata") or {}
+                model = rm.get("model") or rm.get("model_name", "")
+
+            if not usage:
+                continue
+
+            inp = int(usage.get("input_tokens", 0) or 0)
+            out = int(usage.get("output_tokens", 0) or 0)
+            total_input += inp
+            total_output += out
+
+            pricing = _MODEL_PRICING_USD_PER_M.get(model, {})
+            if pricing:
+                total_cost += Decimal(str(inp * pricing["input"] / 1_000_000))
+                total_cost += Decimal(str(out * pricing["output"] / 1_000_000))
+            elif model:
+                logger.debug("No pricing data for model '%s' — tokens counted, cost unknown", model)
+
+        logger.info(
+            "Message-based token extraction: %d in + %d out = %d total tokens, est. $%.4f",
+            total_input,
+            total_output,
+            total_input + total_output,
+            float(total_cost),
+        )
+
+        return WorkflowCostSummary(
+            trace_id="",
+            root_run_id="",
+            total_cost_usd=float(total_cost),
+            total_tokens=total_input + total_output,
+            total_input_tokens=total_input,
+            total_output_tokens=total_output,
+            total_web_searches=0,
+            node_costs=[],
+            execution_time_seconds=execution_time,
+        )
+
     def _zero_cost_summary(self, run_id: str | None = None) -> dict[str, Any]:
         return {
             "total_cost_usd": 0.0,
@@ -233,4 +366,63 @@ class LangSmithCostExtractor:
             total_web_searches=0,
             node_costs=[],
             execution_time_seconds=0.0,
+        )
+
+    def extract_costs_from_callback(
+        self,
+        handler: "TokenUsageCallbackHandler",
+        execution_time: float,
+    ) -> WorkflowCostSummary:
+        """Build a WorkflowCostSummary from a TokenUsageCallbackHandler.
+
+        This is the primary cost-extraction path when LangSmith is not configured.
+        The handler is registered in the LangGraph ``astream`` config so every
+        ``llm.ainvoke()`` inside a node automatically fires ``on_llm_end``.
+        """
+        total_cost = Decimal("0")
+        node_costs: list[NodeCostSummary] = []
+
+        for model, usage in handler._model_usage.items():
+            inp = usage.get("input", 0)
+            out = usage.get("output", 0)
+            pricing = _MODEL_PRICING_USD_PER_M.get(model, {})
+            cost = Decimal(str(inp)) * Decimal(str(pricing.get("input", 0))) / Decimal("1000000") + \
+                   Decimal(str(out)) * Decimal(str(pricing.get("output", 0))) / Decimal("1000000")
+            total_cost += cost
+            node_costs.append(
+                NodeCostSummary(
+                    name=model,
+                    run_id="",
+                    model=model,
+                    cost_usd=float(cost),
+                    tokens=inp + out,
+                    input_tokens=inp,
+                    output_tokens=out,
+                )
+            )
+
+        if not node_costs and handler.total_tokens > 0:
+            # Model name unknown — record as a single unattributed entry
+            node_costs.append(
+                NodeCostSummary(
+                    name="unknown",
+                    run_id="",
+                    model=None,
+                    cost_usd=0.0,
+                    tokens=handler.total_tokens,
+                    input_tokens=handler.input_tokens,
+                    output_tokens=handler.output_tokens,
+                )
+            )
+
+        return WorkflowCostSummary(
+            trace_id="",
+            root_run_id="",
+            total_cost_usd=float(total_cost),
+            total_tokens=handler.total_tokens,
+            total_input_tokens=handler.input_tokens,
+            total_output_tokens=handler.output_tokens,
+            total_web_searches=0,
+            node_costs=node_costs,
+            execution_time_seconds=execution_time,
         )
