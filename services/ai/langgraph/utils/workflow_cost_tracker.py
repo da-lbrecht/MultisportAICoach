@@ -26,7 +26,7 @@ class WorkflowCostTracker:
         self.project_name = project_name
         self.cost_extractor = LangSmithCostExtractor()
 
-    async def run_workflow_with_cost_tracking(
+    async def run_workflow_with_cost_tracking(  # noqa: C901
         self,
         workflow_app,
         initial_state: dict[str, Any],

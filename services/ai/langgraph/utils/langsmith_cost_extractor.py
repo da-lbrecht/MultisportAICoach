@@ -2,7 +2,7 @@ import logging
 import os
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -52,7 +52,7 @@ class TokenUsageCallbackHandler(BaseCallbackHandler):
         self._model_usage: dict[str, dict[str, int]] = {}
         self._lock = threading.Lock()
 
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:  # noqa: D102
+    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         for gen_list in response.generations:
             for gen in gen_list:
                 msg = getattr(gen, "message", None)

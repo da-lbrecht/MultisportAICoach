@@ -61,7 +61,7 @@ You are the **{agent_type.replace('_', ' ').title()}**.
 
 
 def get_plotting_instructions(agent_name: str) -> str:
-    return f"""
+    return """
 ## Visualization Rules
 - **Constraint**: Create plots ONLY for unique insights not visible in standard Garmin reports. Max 2 plots.
 - **Reference**: After a successful plotting tool call, use the returned `plot_id` EXACTLY as `[PLOT:<returned_plot_id>]`.

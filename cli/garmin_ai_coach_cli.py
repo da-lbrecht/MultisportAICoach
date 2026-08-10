@@ -155,8 +155,7 @@ def _render_equipment_log(entries: list[dict[str, str]]) -> str:
         "athlete for this run; use it to correctly interpret pace/power/HR per session "
         "and to prescribe gear-appropriate targets):"
     ]
-    for entry in entries:
-        lines.append(f"- {entry['date']} ({entry['sport']}): {entry['notes']}")
+    lines.extend(f"- {entry['date']} ({entry['sport']}): {entry['notes']}" for entry in entries)
 
     return "\n".join(lines)
 
