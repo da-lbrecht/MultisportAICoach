@@ -49,13 +49,17 @@ Create a detailed 28-day (4-week) training plan.
 - Competitions: ```json {competitions} ```
 - **User Context**: ``` {planning_context} ```
 
+### Athlete's Exact Zones (use these values verbatim in the Zones Table below — do not invent your own)
+- Power zones (cycling, watts): ```json {power_zones} ```
+- Heart rate zones (bpm): ```json {hr_zones} ```
+
 ### Expert Analysis
 - Metrics: ``` {metrics_analysis} ```
 - Activity: ``` {activity_analysis} ```
 - Physiology: ``` {physiology_analysis} ```
 
 ## Output Requirements
-1. **Zones Table**: Define intensity zones first.
+1. **Zones Table**: Reproduce the exact athlete zones given above (do not approximate or re-derive them).
 2. **Structure**: Group by Week (1-4).
 3. **Daily Format**:
    - **DAY & DATE**: e.g., "Mon, Nov 24"
@@ -99,6 +103,8 @@ async def weekly_planner_node(state: TrainingAnalysisState) -> dict[str, list | 
         + WEEKLY_PLANNER_FINAL_CHECKLIST
     )
 
+    garmin_data = state.get("garmin_data") or {}
+
     qa_messages = normalize_langchain_messages(state.get("weekly_planner_messages", []))
     user_message = {
         "role": "user",
@@ -109,6 +115,8 @@ async def weekly_planner_node(state: TrainingAnalysisState) -> dict[str, list | 
             week_dates=json.dumps(state["week_dates"], indent=2),
             competitions=json.dumps(state["competitions"], indent=2),
             planning_context=state["planning_context"],
+            power_zones=json.dumps(garmin_data.get("power_zones") or {}, indent=2),
+            hr_zones=json.dumps(garmin_data.get("hr_zones") or {}, indent=2),
             metrics_analysis=extract_expert_output(state.get("metrics_outputs"), "for_weekly_planner"),
             activity_analysis=extract_expert_output(state.get("activity_outputs"), "for_weekly_planner"),
             physiology_analysis=extract_expert_output(state.get("physiology_outputs"), "for_weekly_planner"),

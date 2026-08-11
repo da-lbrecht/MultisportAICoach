@@ -6,6 +6,50 @@ athlete:
   name: "John Doe"
   email: "john.doe@example.com"  # Garmin Connect email
 
+  # Optional fallback zones — only used when Garmin has no live FTP / lactate-threshold
+  # estimate for you yet (garmin_workout_push_enabled below prefers live Garmin data).
+  # Example numbers below assume FTP 250W / max HR 185 bpm — replace with your own.
+  ftp: 250          # Watts
+  max_heart_rate: 185  # bpm
+  power_zones:      # % of FTP (Coggan 7-zone model)
+    z1_recovery:
+      min_watts: 0
+      max_watts: 137
+    z2_endurance:
+      min_watts: 138
+      max_watts: 187
+    z3_tempo:
+      min_watts: 188
+      max_watts: 225
+    z4_threshold:
+      min_watts: 226
+      max_watts: 262
+    z5_vo2max:
+      min_watts: 263
+      max_watts: 300
+    z6_anaerobic:
+      min_watts: 301
+      max_watts: 375
+    z7_neuromuscular:
+      min_watts: 376
+      max_watts: 999
+  hr_zones:         # % of max HR
+    z1_recovery:
+      min_bpm: 92
+      max_bpm: 111
+    z2_aerobic:
+      min_bpm: 111
+      max_bpm: 129
+    z3_tempo:
+      min_bpm: 129
+      max_bpm: 148
+    z4_threshold:
+      min_bpm: 148
+      max_bpm: 166
+    z5_maximal:
+      min_bpm: 166
+      max_bpm: 185
+
 # Analysis Context
 context:
   analysis: |
@@ -25,10 +69,19 @@ extraction:
   enable_plotting: false   # Enable AI-generated plots (default: false to save costs). Set to true for visual insights.
   hitl_enabled: true       # Enable Human-in-the-Loop interactions - agents can ask questions during analysis (default: true)
   skip_synthesis: false    # Skip synthesis and formatter nodes (default: false). Set to true to save tokens when you only need the weekly plan.
-  equipment_annotation_enabled: false  # Interactive prompt after Garmin import: add equipment notes (wetsuit/jammers,
-                                        # open water/pool, which bike, etc.) to individual swim/bike sessions. Garmin
-                                        # doesn't record equipment, so this is the only way to get it to the coach.
-                                        # Runs in the terminal right after data extraction; press Enter to skip any session.
+  equipment_annotation_enabled: false  # Interactive prompt after Garmin import: add session notes (wetsuit/jammers,
+                                        # open water/pool, indoor/outdoor, terrain, equipment used, etc.) to every
+                                        # imported session. Garmin-tagged gear (bikes/shoes) is shown as an editable
+                                        # default. Runs in the terminal right after data extraction; press Enter to skip.
+  garmin_workout_push_enabled: false   # After the weekly plan is generated, extract every day's primary session
+                                        # (only pure rest days skipped) and offer (via a toggleable checklist) to
+                                        # push them to Garmin. Running/cycling/swimming get a full zone-targeted
+                                        # workout; everything else (strength/mobility/walking/etc.) still gets
+                                        # pushed as a simple single-block calendar entry, with the plan's verbatim
+                                        # text carried into its description. Zone targets prefer Garmin's own live
+                                        # FTP/lactate-threshold estimates; athlete.power_zones/hr_zones above are
+                                        # only a fallback. Only looks 28 days ahead, and asks before overwriting
+                                        # anything this tool already scheduled on a given date in a previous run.
 
   # Long-term trends (optional - provides historical context for VO2 max and training load)
   include_long_term_trends: true  # Include long-term trends in analysis (default: true)

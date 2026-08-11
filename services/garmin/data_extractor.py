@@ -20,6 +20,7 @@ from .models import (
     PhysiologicalMarkers,
     RecoveryIndicators,
     TrainingStatus,
+    TrainingThresholds,
     UserProfile,
     WeatherData,
 )
@@ -302,8 +303,9 @@ class TriathlonCoachDataExtractor(DataExtractor):
         config = config or ExtractionConfig()
         date_ranges = self.get_date_ranges(config)
 
+        user_profile = self.get_user_profile()
         data: dict[str, Any] = {
-            "user_profile": self.get_user_profile(),
+            "user_profile": user_profile,
             "daily_stats": self.get_daily_stats(date_ranges["metrics"]["end"]),
         }
 
@@ -322,6 +324,7 @@ class TriathlonCoachDataExtractor(DataExtractor):
                     "training_status": self.get_training_status(mend),
                     "vo2_max_history": self.get_vo2_max_history(mstart, mend),
                     "training_load_history": self.get_training_load_history(mstart, mend),
+                    "training_thresholds": self.get_training_thresholds(user_profile),
                 }
             )
 
@@ -368,6 +371,34 @@ class TriathlonCoachDataExtractor(DataExtractor):
             preferred_long_training_days=user_data.get("preferredLongTrainingDays"),
             sleep_time=sleep_data.get("sleepTime"),
             wake_time=sleep_data.get("wakeTime"),
+        )
+
+    @staticmethod
+    def _extract_ftp_watts(raw: Any) -> float | None:
+        if isinstance(raw, list) and raw:
+            raw = raw[0]
+        if not isinstance(raw, Mapping):
+            return None
+        for key in ("functionalThresholdPower", "ftp", "value"):
+            if (value := _to_float(raw.get(key))) is not None:
+                return value
+        return None
+
+    def get_training_thresholds(self, user_profile: UserProfile | None = None) -> TrainingThresholds:
+        # Lactate threshold HR/speed already come from get_user_profile() (a proven field on
+        # this endpoint); only FTP watts needs its own dedicated, less-certain endpoint.
+        profile = user_profile or self.get_user_profile()
+
+        ftp_raw = self._call_api(
+            self.garmin.client.get_cycling_ftp,
+            default=None,
+            what="get_cycling_ftp",
+        )
+
+        return TrainingThresholds(
+            ftp_watts=self._extract_ftp_watts(ftp_raw),
+            lactate_threshold_hr=profile.lactate_threshold_heart_rate,
+            lactate_threshold_speed_ms=profile.lactate_threshold_speed,
         )
 
     def get_daily_stats(self, date_obj: date) -> DailyStats:

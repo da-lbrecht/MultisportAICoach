@@ -165,6 +165,15 @@ class TrainingStatus:
 
 
 @dataclass
+class TrainingThresholds:
+    """Garmin's own live-estimated training thresholds, used to derive precise zone tables."""
+
+    ftp_watts: float | None = None
+    lactate_threshold_hr: int | None = None
+    lactate_threshold_speed_ms: float | None = None
+
+
+@dataclass
 class GarminData:
     user_profile: UserProfile | None = None
     daily_stats: DailyStats | None = None
@@ -178,3 +187,4 @@ class GarminData:
     training_load_history: list[dict[str, Any]] | None = None
     long_term_vo2_max_trend: dict[str, list[dict[str, Any]]] | None = None
     long_term_training_load_trend: list[dict[str, Any]] | None = None
+    training_thresholds: TrainingThresholds | None = None

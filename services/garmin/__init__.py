@@ -13,6 +13,7 @@ from .models import (
     RecoveryIndicators,
     TimeRange,
     TrainingStatus,
+    TrainingThresholds,
     UserProfile,
     WeatherData,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "RecoveryIndicators",
     "TimeRange",
     "TrainingStatus",
+    "TrainingThresholds",
     "TriathlonCoachDataExtractor",
     "UserProfile",
     "WeatherData",

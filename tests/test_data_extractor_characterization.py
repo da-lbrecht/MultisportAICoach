@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from services.garmin.data_extractor import DataExtractor, TriathlonCoachDataExtractor
-from services.garmin.models import Activity, ActivitySummary, ExtractionConfig, Gear
+from services.garmin.models import Activity, ActivitySummary, ExtractionConfig, Gear, TrainingThresholds, UserProfile
 
 
 class TestDataExtractorCharacterization:
@@ -286,3 +286,46 @@ class TestGetActivityGear:
         mock_garmin_client.client.get_activity_gear.return_value = None
 
         assert extractor.get_activity_gear(123) == []
+
+
+class TestGetTrainingThresholds:
+
+    def test_extracts_ftp_and_reuses_given_profile_lthr(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_cycling_ftp.return_value = {"functionalThresholdPower": 271}
+        profile = UserProfile(lactate_threshold_heart_rate=165, lactate_threshold_speed=3.5)
+
+        result = extractor.get_training_thresholds(profile)
+
+        assert result == TrainingThresholds(
+            ftp_watts=271.0, lactate_threshold_hr=165, lactate_threshold_speed_ms=3.5
+        )
+        mock_garmin_client.client.get_user_profile.assert_not_called()
+
+    def test_handles_list_shaped_ftp_response(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_cycling_ftp.return_value = [{"functionalThresholdPower": 250}]
+
+        result = extractor.get_training_thresholds(UserProfile())
+
+        assert result.ftp_watts == 250.0
+
+    def test_missing_ftp_field_falls_back_to_none(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_cycling_ftp.return_value = {"unexpected": "shape"}
+
+        result = extractor.get_training_thresholds(UserProfile())
+
+        assert result.ftp_watts is None
+
+    def test_fetches_profile_itself_when_none_provided(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_cycling_ftp.return_value = {"functionalThresholdPower": 271}
+        mock_garmin_client.client.get_user_profile.return_value = {
+            "userData": {"lactateThresholdHeartRate": 160},
+        }
+
+        result = extractor.get_training_thresholds()
+
+        assert result.lactate_threshold_hr == 160
+        mock_garmin_client.client.get_user_profile.assert_called_once()
