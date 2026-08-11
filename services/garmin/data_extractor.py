@@ -15,6 +15,7 @@ from .models import (
     DailyStats,
     ExtractionConfig,
     GarminData,
+    Gear,
     HeartRateZone,
     PhysiologicalMarkers,
     RecoveryIndicators,
@@ -414,6 +415,48 @@ class TriathlonCoachDataExtractor(DataExtractor):
 
     # --------- Activities ---------
 
+    _GEAR_RELEVANT_KEYWORDS = ("swim", "cycl", "bik", "ride", "run")
+
+    @classmethod
+    def _is_gear_relevant_activity(cls, activity_type: str | None) -> bool:
+        if not activity_type:
+            return False
+        lowered = activity_type.lower()
+        return any(keyword in lowered for keyword in cls._GEAR_RELEVANT_KEYWORDS)
+
+    def get_activity_gear(self, activity_id: Any) -> list[Gear]:
+        raw = self._call_api(
+            self.garmin.client.get_activity_gear,
+            activity_id,
+            default=[],
+            what=f"get_activity_gear({activity_id})",
+        )
+        if isinstance(raw, Mapping):
+            items = raw.get("gear") or raw.get("gearList") or []
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
+
+        gear_list: list[Gear] = []
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            gear_type = (
+                item.get("gearTypeName")
+                or _deep_get(item, ("gearTypeDto", "displayName"))
+                or _deep_get(item, ("gearTypeDto", "typeKey"))
+            )
+            gear_list.append(
+                Gear(
+                    uuid=item.get("uuid"),
+                    display_name=item.get("displayName") or item.get("customMakeModel"),
+                    gear_type=gear_type,
+                    make_model=item.get("customMakeModel"),
+                )
+            )
+        return gear_list
+
     def get_activity_laps(self, activity_id: int) -> list[dict[str, Any]]:
         splits = self._call_api(
             self.garmin.client.get_activity_splits,
@@ -577,7 +620,27 @@ class TriathlonCoachDataExtractor(DataExtractor):
             "startTime": child_start_time,
             "summary": child_summary,
             "laps": self.get_activity_laps(child_id),
+            "gear": (
+                self.get_activity_gear(child_id)
+                if self._is_gear_relevant_activity(child_type)
+                else []
+            ),
         }
+
+    @staticmethod
+    def _aggregate_child_gear(child_activities: list[dict[str, Any]]) -> list[Gear]:
+        seen_uuids: set[str] = set()
+        aggregated: list[Gear] = []
+        for seg in child_activities:
+            for item in seg.get("gear") or []:
+                if not isinstance(item, Gear):
+                    continue
+                key = item.uuid or item.display_name
+                if key in seen_uuids:
+                    continue
+                seen_uuids.add(key)
+                aggregated.append(item)
+        return aggregated
 
     def _multisport_child_entries(self, child_ids: list[Any], child_types: list[Any]) -> list[dict[str, Any]]:
         child_activities = []
@@ -645,6 +708,7 @@ class TriathlonCoachDataExtractor(DataExtractor):
                 hr_zones=[],
                 # NOTE: Keeping child activities inside laps to preserve external behavior.
                 laps=child_activities,
+                gear=self._aggregate_child_gear(child_activities),
             )
         except Exception:
             logger.exception("Error processing multisport activity")
@@ -699,6 +763,11 @@ class TriathlonCoachDataExtractor(DataExtractor):
 
             weather_out = None if activity_type == "meditation" else self._extract_weather_data(weather_data)
             laps_out = [] if activity_type == "meditation" else lap_data
+            gear_out = (
+                self.get_activity_gear(activity_id)
+                if self._is_gear_relevant_activity(activity_type)
+                else []
+            )
 
             return Activity(
                 activity_id=activity_id,
@@ -708,6 +777,7 @@ class TriathlonCoachDataExtractor(DataExtractor):
                 summary=summary,
                 weather=weather_out,
                 laps=laps_out,
+                gear=gear_out,
             )
         except Exception:
             logger.exception("Error processing single sport activity")

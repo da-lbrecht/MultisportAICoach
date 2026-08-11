@@ -118,6 +118,14 @@ class HeartRateZone:
 
 
 @dataclass
+class Gear:
+    uuid: str | None = None
+    display_name: str | None = None  # e.g. "Canyon Endurace", "Nike Pegasus 40"
+    gear_type: str | None = None  # e.g. "Bike", "Shoes"
+    make_model: str | None = None
+
+
+@dataclass
 class Activity:
     activity_id: int | None = None
     activity_type: str | None = None
@@ -127,6 +135,7 @@ class Activity:
     weather: WeatherData | None = None
     hr_zones: list[HeartRateZone] | None = None
     laps: list[dict[str, Any]] | None = None  # Complex structure, keeping as Dict for now
+    gear: list[Gear] | None = None  # Bikes/shoes tagged to this activity in Garmin
 
 
 @dataclass

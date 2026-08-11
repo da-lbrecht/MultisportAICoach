@@ -19,6 +19,7 @@ from services.ai.ai_settings import ai_settings
 from services.ai.langgraph.workflows.planning_workflow import (
     run_complete_analysis_and_planning,
 )
+from services.ai.utils.activity_notes_store import ActivityNotesStore
 from services.ai.utils.plan_storage import FilePlanStorage
 from services.garmin import Activity, ExtractionConfig, GarminData, TriathlonCoachDataExtractor
 from services.outside.client import OutsideApiGraphQlClient
@@ -124,16 +125,6 @@ def fetch_outside_competitions_from_config(config: dict[str, Any]) -> list[dict[
     return aggregate
 
 
-EQUIPMENT_RELEVANT_KEYWORDS = ("swim", "cycl", "bik", "ride")
-
-
-def _is_equipment_relevant(activity_type: str | None) -> bool:
-    if not activity_type:
-        return False
-    lowered = activity_type.lower()
-    return any(keyword in lowered for keyword in EQUIPMENT_RELEVANT_KEYWORDS)
-
-
 def _describe_activity(activity: Activity) -> str:
     date = (activity.start_time or "")[:10]
     sport = activity.activity_type or "activity"
@@ -146,44 +137,88 @@ def _describe_activity(activity: Activity) -> str:
     return f"{date}  {sport:<14} {name} {distance_km}".strip()
 
 
+def _describe_garmin_gear(activity: Activity) -> str:
+    if not activity.gear:
+        return ""
+    return ", ".join(
+        (item.display_name or "unknown gear") + (f" ({item.gear_type})" if item.gear_type else "")
+        for item in activity.gear
+    )
+
+
 def _render_equipment_log(entries: list[dict[str, str]]) -> str:
     if not entries:
         return ""
 
     lines = [
-        "EQUIPMENT LOG (equipment is not recorded by Garmin — provided directly by the "
-        "athlete for this run; use it to correctly interpret pace/power/HR per session "
-        "and to prescribe gear-appropriate targets):"
+        "SESSION NOTES (bikes/shoes tagged in Garmin are read automatically as a gear "
+        "default; anything else Garmin can't capture — wetsuit vs jammers, open water "
+        "vs pool, indoor vs outdoor, terrain, equipment used, etc — is provided directly "
+        "by the athlete for this run; use it to correctly interpret each session and to "
+        "prescribe context-appropriate targets):"
     ]
     lines.extend(f"- {entry['date']} ({entry['sport']}): {entry['notes']}" for entry in entries)
 
     return "\n".join(lines)
 
 
-def collect_equipment_annotations(garmin_data: GarminData) -> str:
+def collect_equipment_annotations(
+    garmin_data: GarminData,
+    user_id: str = "cli_user",
+    notes_store: ActivityNotesStore | None = None,
+) -> str:
     activities = garmin_data.recent_activities or []
-    relevant = [a for a in activities if _is_equipment_relevant(a.activity_type)]
 
-    if not relevant:
+    if not activities:
         return ""
 
+    notes_store = notes_store or ActivityNotesStore()
+    previous_notes = notes_store.load(user_id)
+
     print(f"\n{'='*60}")
-    print(f"EQUIPMENT NOTES — {len(relevant)} swim/bike session(s) imported from Garmin")
-    print("Garmin doesn't record equipment. Add a note for any session where it matters")
-    print("(e.g. wetsuit vs jammers, open water vs pool, which bike) — Enter to skip.")
+    print(f"SESSION NOTES — {len(activities)} session(s) imported from Garmin")
+    print("Where Garmin has gear tagged, or you noted this exact session in a previous")
+    print("run, it's shown as a default — press Enter to keep it, or type to replace it.")
+    print("Enter alone with no default skips a session entirely.")
     print(f"{'='*60}")
 
     entries: list[dict[str, str]] = []
-    for activity in relevant:
-        notes = input(f"  {_describe_activity(activity)}\n    Notes (Enter to skip): ").strip()
-        if notes:
+    updated_notes: dict[str, dict[str, str]] = {}
+    for activity in activities:
+        activity_key = str(activity.activity_id) if activity.activity_id is not None else None
+        previous_note = previous_notes.get(activity_key, {}).get("note", "") if activity_key else ""
+
+        garmin_gear = _describe_garmin_gear(activity)
+        hint_parts = [part for part in (garmin_gear, previous_note) if part]
+        default_hint = f" [{'; '.join(hint_parts)}]" if hint_parts else ""
+
+        typed = input(f"  {_describe_activity(activity)}\n    Notes{default_hint}: ").strip()
+        effective_note = typed or previous_note  # Enter keeps the prior note; typing replaces it.
+
+        if garmin_gear:
+            combined = f"Garmin gear — {garmin_gear}" + (f"; {effective_note}" if effective_note else "")
+        else:
+            combined = effective_note
+
+        if combined:
             entries.append({
                 "date": (activity.start_time or "")[:10],
                 "sport": activity.activity_type or "activity",
-                "notes": notes,
+                "notes": combined,
             })
 
+        if activity_key and effective_note:
+            updated_notes[activity_key] = {
+                "note": effective_note,
+                "date": (activity.start_time or "")[:10],
+                "sport": activity.activity_type or "activity",
+            }
+
     print(f"{'='*60}\n")
+
+    if updated_notes:
+        notes_store.save(user_id, {**previous_notes, **updated_notes})
+
     return _render_equipment_log(entries)
 
 

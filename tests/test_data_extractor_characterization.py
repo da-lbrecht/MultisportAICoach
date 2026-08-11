@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from services.garmin.data_extractor import DataExtractor, TriathlonCoachDataExtractor
-from services.garmin.models import Activity, ActivitySummary, ExtractionConfig
+from services.garmin.models import Activity, ActivitySummary, ExtractionConfig, Gear
 
 
 class TestDataExtractorCharacterization:
@@ -193,3 +193,96 @@ class TestDataExtractorIntegrationBehavior:
         assert result.summary is not None
         assert result.summary.avg_power == 250
         assert result.summary.normalized_power == 260
+
+    def test_gear_attached_for_relevant_activity_type(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_activity_details.return_value = {}
+        mock_garmin_client.client.get_activity_weather.return_value = None
+        mock_garmin_client.client.get_activity_gear.return_value = [
+            {"uuid": "g1", "displayName": "Canyon Endurace", "gearTypeName": "Bike"}
+        ]
+
+        result = extractor._process_single_sport_activity({
+            "activityId": 123,
+            "startTimeLocal": "2025-01-01T10:00:00",
+            "activityType": {"typeKey": "cycling"},
+            "summaryDTO": {},
+        })
+
+        assert result is not None
+        assert result.gear == [Gear(uuid="g1", display_name="Canyon Endurace", gear_type="Bike")]
+        mock_garmin_client.client.get_activity_gear.assert_called_once_with(123)
+
+    def test_gear_not_fetched_for_irrelevant_activity_type(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_activity_details.return_value = {}
+        mock_garmin_client.client.get_activity_weather.return_value = None
+
+        result = extractor._process_single_sport_activity({
+            "activityId": 124,
+            "startTimeLocal": "2025-01-01T10:00:00",
+            "activityType": {"typeKey": "strength_training"},
+            "summaryDTO": {},
+        })
+
+        assert result is not None
+        assert result.gear == []
+        mock_garmin_client.client.get_activity_gear.assert_not_called()
+
+    def test_multisport_gear_aggregated_and_deduplicated(self, mock_garmin_client):
+        mock_garmin_client.client.get_activity.side_effect = [
+            {"activityId": 12346, "activityName": "Bike Leg", "startTimeLocal": "2025-01-01T06:00:00", "summaryDTO": {}},
+            {"activityId": 12347, "activityName": "Run Leg", "startTimeLocal": "2025-01-01T07:00:00", "summaryDTO": {}},
+        ]
+        mock_garmin_client.client.get_activity_details.return_value = {}
+        mock_garmin_client.client.get_activity_weather.return_value = None
+        mock_garmin_client.client.get_activity_gear.side_effect = [
+            [{"uuid": "g1", "displayName": "Canyon Endurace", "gearTypeName": "Bike"}],
+            [{"uuid": "g2", "displayName": "Nike Pegasus 40", "gearTypeName": "Shoes"}],
+        ]
+
+        result = TriathlonCoachDataExtractor("test@example.com", "password")._process_multisport_activity({
+            "activityId": 12345,
+            "activityName": "Duathlon",
+            "isMultiSportParent": True,
+            "startTimeLocal": "2025-01-01T06:00:00",
+            "summaryDTO": {},
+            "metadataDTO": {"childIds": [12346, 12347], "childActivityTypes": ["cycling", "running"]},
+        })
+
+        assert result is not None
+        assert result.gear is not None
+        assert {g.display_name for g in result.gear} == {"Canyon Endurace", "Nike Pegasus 40"}
+
+
+class TestGetActivityGear:
+
+    def test_parses_list_response(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_activity_gear.return_value = [
+            {"uuid": "g1", "displayName": "Canyon Endurace", "gearTypeName": "Bike"},
+            {"uuid": "g2", "customMakeModel": "Nike Pegasus 40", "gearTypeDto": {"displayName": "Shoes"}},
+        ]
+
+        result = extractor.get_activity_gear(123)
+
+        assert result == [
+            Gear(uuid="g1", display_name="Canyon Endurace", gear_type="Bike"),
+            Gear(uuid="g2", display_name="Nike Pegasus 40", gear_type="Shoes", make_model="Nike Pegasus 40"),
+        ]
+
+    def test_parses_dict_wrapped_response(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_activity_gear.return_value = {
+            "gear": [{"uuid": "g1", "displayName": "Canyon Endurace", "gearTypeName": "Bike"}]
+        }
+
+        result = extractor.get_activity_gear(123)
+
+        assert result == [Gear(uuid="g1", display_name="Canyon Endurace", gear_type="Bike")]
+
+    def test_returns_empty_list_for_unexpected_response(self, mock_garmin_client):
+        extractor = TriathlonCoachDataExtractor("test@example.com", "password")
+        mock_garmin_client.client.get_activity_gear.return_value = None
+
+        assert extractor.get_activity_gear(123) == []
