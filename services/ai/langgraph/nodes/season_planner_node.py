@@ -55,6 +55,7 @@ Create a macro-cycle framework.
 - **Integrate**: Use expert insights as your north star.
 - **Strategize**: Define phases, themes, and focus areas.
 - **Respect Boundaries**: Do NOT prescribe daily workouts (Weekly Planner's job).
+- **Respect Competition Status**: Check each competition's `completed`/`result` field. Any competition that is cancelled, DNS, or DNF must NOT be framed as an active target, North Star event, or taper anchor anywhere in the plan (phase titles, goals, focus areas, constraints, risk table). Only competitions without such a status may anchor phases.
 
 ## Output Requirements
 Format as structured markdown.
@@ -114,7 +115,7 @@ async def season_planner_node(state: TrainingAnalysisState) -> dict[str, list | 
             metrics_insights=extract_expert_output(state.get("metrics_outputs"), "for_season_planner"),
             activity_insights=extract_expert_output(state.get("activity_outputs"), "for_season_planner"),
             physiology_insights=extract_expert_output(state.get("physiology_outputs"), "for_season_planner"),
-        ) + (f"\n\n## Existing Season Plan\nWe have an existing season plan. Do NOT start from scratch. Review this plan against the new expert insights. If the plan is still valid, maintain the phase structure and just refine the details. Only trigger a full replan if the new data suggests the old plan is dangerously off-track.\n\n```markdown\n{existing_season_plan}\n```" if existing_season_plan else "")},
+        ) + (f"\n\n## Existing Season Plan\nWe have an existing season plan. Do NOT start from scratch. Review this plan against the new expert insights. If the plan is still valid, maintain the phase structure and just refine the details. Only trigger a full replan if the new data suggests the old plan is dangerously off-track.\n\n**Status reconciliation (do this first, before anything else):** Compare every competition referenced in the existing plan below against its current `completed`/`result` status in the Competitions input above. If a competition the existing plan treated as an active target, North Star, or taper anchor is now cancelled, DNS, or DNF, you MUST rewrite every phase, title, and rationale built around it — do not merely append a note. This reconciliation overrides the 'preserve existing structure' guidance whenever the two conflict.\n\n```markdown\n{existing_season_plan}\n```" if existing_season_plan else "")},
     ]
 
     base_llm = ModelSelector.get_llm(AgentRole.SEASON_PLANNER)
