@@ -32,7 +32,11 @@ _WORKOUT_CLASSES: dict[str, type[BaseWorkout]] = {
     "walking": WalkingWorkout,
     "hiking": HikingWorkout,
     "strength": FitnessEquipmentWorkout,
-    "mobility": BaseWorkout,  # no dedicated typed subclass — sportType below carries the "yoga" tag
+    # sportTypeId 9 ("yoga") was tested against a live account and pushed successfully, but
+    # Garmin rendered it as a generic/unrecognized activity rather than a proper Yoga icon —
+    # no benefit over the generic fallback, so mobility/yoga sessions share the verified,
+    # correctly-rendering Fitness Equipment mapping instead.
+    "mobility": FitnessEquipmentWorkout,
 }
 
 _SPORT_TYPES: dict[str, dict] = {
@@ -42,9 +46,7 @@ _SPORT_TYPES: dict[str, dict] = {
     "walking": {"sportTypeId": SportType.WALKING, "sportTypeKey": "walking", "displayOrder": 4},
     "hiking": {"sportTypeId": SportType.HIKING, "sportTypeKey": "hiking", "displayOrder": 7},
     "strength": {"sportTypeId": SportType.FITNESS_EQUIPMENT, "sportTypeKey": "fitness_equipment", "displayOrder": 6},
-    # sportTypeId 9 is an UNVERIFIED guess for yoga — garminconnect.workout.SportType has no
-    # YOGA constant. Untested against a live account; may need correcting after a real push.
-    "mobility": {"sportTypeId": 9, "sportTypeKey": "yoga", "displayOrder": 9},
+    "mobility": {"sportTypeId": SportType.FITNESS_EQUIPMENT, "sportTypeKey": "fitness_equipment", "displayOrder": 6},
 }
 
 _DEFAULT_WORKOUT_CLASS = BaseWorkout
@@ -78,13 +80,16 @@ def _end_condition(step: SessionStep) -> tuple[dict, float]:
         }
         return condition, step.duration_min * 60.0
 
+    if step.distance_m is None:
+        raise IncompleteStepError(f"step '{step.label}' has neither duration nor distance")
+
     condition = {
         "conditionTypeId": ConditionType.DISTANCE,
         "conditionTypeKey": "distance",
         "displayOrder": 1,
         "displayable": True,
     }
-    return condition, float(step.distance_m)
+    return condition, step.distance_m
 
 
 def _target_for(sport: str, zone_key: str | None, power_zones: dict, hr_zones: dict) -> dict:

@@ -155,6 +155,7 @@ max-complexity = 10
 "__init__.py" = ["F401"]
 
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.13"
 pretty = true
 show_error_codes = true
@@ -180,7 +181,7 @@ explicit_package_bases = true
 exclude = "^(\\.pixi|\\.venv|venv|build|dist|data|logs)/"
 
 [[tool.mypy.overrides]]
-module = ["garminconnect", "garth"]
+module = ["garminconnect", "garminconnect.*", "garth"]
 ignore_missing_imports = true
 
 [tool.ruff.format]

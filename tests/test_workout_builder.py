@@ -81,6 +81,7 @@ def test_unknown_zone_key_falls_back_to_open_target_instead_of_crashing():
 
     workout = build_garmin_workout(session, POWER_ZONES, HR_ZONES)
 
+    assert workout is not None
     step = workout.workoutSegments[0].workoutSteps[0]
     assert step.targetType["workoutTargetTypeKey"] == "no.target"
 
@@ -94,6 +95,7 @@ def test_repeated_steps_are_grouped_into_one_repeat_group_not_flattened():
     ])
 
     workout = build_garmin_workout(session, POWER_ZONES, HR_ZONES)
+    assert workout is not None
     steps = workout.workoutSegments[0].workoutSteps
 
     assert len(steps) == 3  # warmup, ONE repeat group, cooldown — not 4 separate steps
@@ -122,6 +124,7 @@ def test_description_is_carried_onto_the_built_workout():
 
     workout = build_garmin_workout(session, POWER_ZONES, HR_ZONES)
 
+    assert workout is not None
     assert workout.to_dict()["description"] == "FOCUS: Recovery\nWORKOUT: 30 min easy Z1/Z2"
 
 
@@ -143,13 +146,15 @@ def test_strength_session_uses_fitness_equipment_workout_class():
     assert isinstance(workout, FitnessEquipmentWorkout)
 
 
-def test_mobility_session_uses_generic_workout_tagged_as_yoga():
+def test_mobility_session_uses_fitness_equipment_workout_class():
+    # sportTypeId 9 ("yoga") was tested against a live Garmin account and rendered as a
+    # generic/unrecognized icon rather than Yoga, so mobility shares strength's verified mapping.
     session = _session("mobility", "Yoga Flow", [SessionStep(label="Flow", duration_min=20)])
 
     workout = build_garmin_workout(session, POWER_ZONES, HR_ZONES)
 
-    assert isinstance(workout, BaseWorkout)
-    assert workout.workoutSegments[0].sportType["sportTypeKey"] == "yoga"
+    assert isinstance(workout, FitnessEquipmentWorkout)
+    assert workout.workoutSegments[0].sportType["sportTypeKey"] == "fitness_equipment"
 
 
 def test_unrecognized_sport_falls_back_to_generic_other_workout():

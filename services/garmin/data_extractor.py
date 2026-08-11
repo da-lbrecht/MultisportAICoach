@@ -667,6 +667,10 @@ class TriathlonCoachDataExtractor(DataExtractor):
                 if not isinstance(item, Gear):
                     continue
                 key = item.uuid or item.display_name
+                if key is None:
+                    # No identifying info to dedupe against — always keep it.
+                    aggregated.append(item)
+                    continue
                 if key in seen_uuids:
                     continue
                 seen_uuids.add(key)
