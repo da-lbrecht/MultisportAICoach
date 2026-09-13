@@ -100,6 +100,12 @@ class ConfigParser:
                 "race_type": comp.get("race_type", ""),
                 "priority": comp.get("priority", "B"),
                 "target_time": comp.get("target_time", ""),
+                # completed/result are read by the season planner prompt to decide whether a
+                # competition may anchor a plan phase (cancelled/DNS/DNF must not); notes carries
+                # any other free-text context (e.g. why a race was skipped, or per-event details).
+                "completed": comp.get("completed", False),
+                "result": comp.get("result", ""),
+                "notes": comp.get("notes", ""),
             }
             for comp in competitions
         ]
