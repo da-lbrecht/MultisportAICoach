@@ -43,6 +43,10 @@ def test_build_cycling_workout_maps_zone_to_power_target():
     main_set = steps[1]
     assert isinstance(main_set, ExecutableStep)
     assert main_set.targetType["workoutTargetTypeKey"] == "power.zone"
+    # Garmin reads this numeric id as authoritative (ignoring the key above) — it must be
+    # 2, not the installed garminconnect lib's (incorrect) TargetType.POWER=5, or Garmin
+    # silently stores the watts range as a speed target instead.
+    assert main_set.targetType["workoutTargetTypeId"] == 2
     assert main_set.targetValueOne == 244
     assert main_set.targetValueTwo == 285
     assert main_set.endConditionValue == 30 * 60
@@ -56,6 +60,9 @@ def test_build_running_workout_maps_zone_to_heart_rate_target():
     assert isinstance(workout, RunningWorkout)
     step = workout.workoutSegments[0].workoutSteps[0]
     assert step.targetType["workoutTargetTypeKey"] == "heart.rate.zone"
+    # Same rationale as the cycling power-zone id check above, but for HR: must be 4,
+    # not the installed lib's (incorrect) TargetType.HEART_RATE=2.
+    assert step.targetType["workoutTargetTypeId"] == 4
     assert step.targetValueOne == 115
     assert step.targetValueTwo == 134
 

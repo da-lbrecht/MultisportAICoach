@@ -52,6 +52,15 @@ _SPORT_TYPES: dict[str, dict] = {
 _DEFAULT_WORKOUT_CLASS = BaseWorkout
 _DEFAULT_SPORT_TYPE = {"sportTypeId": SportType.OTHER, "sportTypeKey": "other", "displayOrder": 8}
 
+# The installed garminconnect version (pinned <0.3) ships a TargetType enum whose
+# POWER/HEART_RATE ids don't match Garmin's actual API — Garmin reads the numeric
+# workoutTargetTypeId as authoritative and ignores the key, so submitting under the
+# library's wrong id makes it store our watts as a "speed" target (and vice versa
+# for HR). This was fixed upstream in later releases (POWER_ZONE=2, HEART_RATE_ZONE=4);
+# we hardcode the corrected Garmin ids here rather than trust the library's constants.
+_POWER_ZONE_TARGET_TYPE_ID = 2
+_HEART_RATE_ZONE_TARGET_TYPE_ID = 4
+
 _NO_TARGET = {"workoutTargetTypeId": TargetType.NO_TARGET, "workoutTargetTypeKey": "no.target", "displayOrder": 1}
 
 
@@ -102,7 +111,7 @@ def _target_for(sport: str, zone_key: str | None, power_zones: dict, hr_zones: d
             logger.warning("Unknown/incomplete power zone '%s' — falling back to open target", zone_key)
             return {"targetType": _NO_TARGET}
         return {
-            "targetType": {"workoutTargetTypeId": TargetType.POWER, "workoutTargetTypeKey": "power.zone", "displayOrder": 5},
+            "targetType": {"workoutTargetTypeId": _POWER_ZONE_TARGET_TYPE_ID, "workoutTargetTypeKey": "power.zone", "displayOrder": 5},
             "targetValueOne": zone["min_watts"],
             "targetValueTwo": zone["max_watts"],
         }
@@ -114,7 +123,7 @@ def _target_for(sport: str, zone_key: str | None, power_zones: dict, hr_zones: d
             return {"targetType": _NO_TARGET}
         return {
             "targetType": {
-                "workoutTargetTypeId": TargetType.HEART_RATE,
+                "workoutTargetTypeId": _HEART_RATE_ZONE_TARGET_TYPE_ID,
                 "workoutTargetTypeKey": "heart.rate.zone",
                 "displayOrder": 2,
             },
