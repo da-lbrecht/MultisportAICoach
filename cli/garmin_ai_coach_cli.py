@@ -20,6 +20,7 @@ from services.ai.langgraph.workflows.planning_workflow import (
     run_complete_analysis_and_planning,
 )
 from services.ai.utils.activity_notes_store import ActivityNotesStore
+from services.ai.utils.plan_adjustments_log import PlanAdjustmentsLog, render_adjustments_context
 from services.ai.utils.plan_storage import FilePlanStorage
 from services.garmin import Activity, ExtractionConfig, GarminData, TriathlonCoachDataExtractor
 from services.garmin.zone_calculator import compute_hr_zones, compute_power_zones
@@ -370,6 +371,17 @@ async def run_analysis_from_config(config_path: Path, output_dir_override: Path 
         power_zones, hr_zones = resolve_zones(
             garmin_data.training_thresholds, static_power_zones, static_hr_zones
         )
+
+        adjustments_days = extraction_settings["activities_days"]
+        if adjustments_log := render_adjustments_context(
+            PlanAdjustmentsLog().recent_entries(
+                "cli_user", (datetime.now() - timedelta(days=adjustments_days)).date()
+            ),
+            adjustments_days,
+        ):
+            logger.info("Including plan adjustments from coach chats in the analysis context")
+            analysis_context = f"{analysis_context}\n\n{adjustments_log}".strip()
+            planning_context = f"{planning_context}\n\n{adjustments_log}".strip()
 
         if extraction_settings.get("equipment_annotation_enabled", False):
             if equipment_log := collect_equipment_annotations(garmin_data):

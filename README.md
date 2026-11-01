@@ -181,6 +181,14 @@ It extracts each day's primary session from today through the next 28 days, show
 
 > 💰 **`coach-push` consumes API tokens.** Turning the written plan into structured workouts is one LLM call per run, using the workout model of your configured `ai_mode` (e.g. Claude Sonnet 4.6 in `development`, Haiku 4.5 in `cost_effective`). For a typical 28-day plan that's roughly ~6k input / ~5k output tokens — about **$0.05–0.15 per run** in `development` mode (less with `cost_effective`, more with `anthropic_pro`/`pro`). The extraction is not cached, so each rerun on the same plan is charged again. Logging in to Garmin and pushing the workouts themselves cost nothing.
 
+### Chat with your coach about the plan (Claude Code)
+
+For follow-up questions between coach runs — clarifying a workout, rearranging a week, adapting today's session to how you feel — open [Claude Code](https://claude.com/claude-code) in this repo and use the `/coach` skill (`.claude/skills/coach/SKILL.md`), e.g. `/coach I'm traveling Thursday, can I swap that run with Saturday's ride?`. The chat runs on your Claude subscription, not on the API key.
+
+- It reads the latest plan, season plan and your config goals/zones, and only digs into the expert outputs when a question needs the reasoning behind the plan.
+- For "should I go easier/harder today?" questions it runs `pixi run coach-readiness --config my_training_config.yaml`, a Garmin-only snapshot (last night's sleep/HRV/RHR vs. baseline, training load, last 7 days of activities) that uses no AI tokens. If your cached Garmin login has expired, run that command once in your own terminal to log in again.
+- Changes you agree to are written into `data/storage/cli_user/weekly_plan.md` and logged in `data/storage/cli_user/plan_adjustments.md`. Run `coach-push` afterwards to update Garmin. The next full coach run reads log entries from the last `activities_days` days as context, so it knows what you changed and why.
+
 ---
 
 ## 🎛️ Providers & Model Selection
