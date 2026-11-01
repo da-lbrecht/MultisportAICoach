@@ -7,7 +7,7 @@ athlete:
   email: "john.doe@example.com"  # Garmin Connect email
 
   # Optional fallback zones — only used when Garmin has no live FTP / lactate-threshold
-  # estimate for you yet (garmin_workout_push_enabled below prefers live Garmin data).
+  # estimate for you yet (the Garmin workout push, `pixi run coach-push`, prefers live Garmin data).
   # Example numbers below assume FTP 250W / max HR 185 bpm — replace with your own.
   ftp: 250          # Watts
   max_heart_rate: 185  # bpm
@@ -73,15 +73,15 @@ extraction:
                                         # open water/pool, indoor/outdoor, terrain, equipment used, etc.) to every
                                         # imported session. Garmin-tagged gear (bikes/shoes) is shown as an editable
                                         # default. Runs in the terminal right after data extraction; press Enter to skip.
-  garmin_workout_push_enabled: false   # After the weekly plan is generated, extract every day's primary session
-                                        # (only pure rest days skipped) and offer (via a toggleable checklist) to
-                                        # push them to Garmin. Running/cycling/swimming get a full zone-targeted
-                                        # workout; everything else (strength/mobility/walking/etc.) still gets
-                                        # pushed as a simple single-block calendar entry, with the plan's verbatim
-                                        # text carried into its description. Zone targets prefer Garmin's own live
-                                        # FTP/lactate-threshold estimates; athlete.power_zones/hr_zones above are
-                                        # only a fallback. Only looks 28 days ahead, and asks before overwriting
-                                        # anything this tool already scheduled on a given date in a previous run.
+  # Pushing the plan to Garmin is a separate command, run whenever you like after the coach:
+  #   pixi run coach-push --config <this file>
+  # It reads the latest weekly plan, extracts every day's primary session (only pure rest days
+  # skipped) and offers (via a toggleable checklist) to push them to Garmin. Running/cycling/swimming
+  # get a full zone-targeted workout; everything else (strength/mobility/walking/etc.) is pushed as a
+  # simple single-block calendar entry, with the plan's verbatim text carried into its description.
+  # Zone targets prefer Garmin's own live FTP/lactate-threshold estimates; athlete.power_zones/hr_zones
+  # above are only a fallback. Only looks 28 days ahead from the day you run it, and asks before
+  # overwriting anything it already scheduled on a given date in a previous push.
 
   # Long-term trends (optional - provides historical context for VO2 max and training load)
   include_long_term_trends: true  # Include long-term trends in analysis (default: true)

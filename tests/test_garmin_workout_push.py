@@ -70,7 +70,7 @@ class TestResolveZones:
 
 class TestFilterSessionsToWindow:
     def test_keeps_only_sessions_within_28_days(self):
-        from cli.garmin_ai_coach_cli import _filter_sessions_to_window
+        from cli.garmin_workout_push_cli import _filter_sessions_to_window
 
         sessions = [
             _session("2026-08-09"),   # day 0 — in window
@@ -84,7 +84,7 @@ class TestFilterSessionsToWindow:
         assert [s.date for s in result] == ["2026-08-09", "2026-09-05"]
 
     def test_skips_sessions_with_unparseable_dates(self):
-        from cli.garmin_ai_coach_cli import _filter_sessions_to_window
+        from cli.garmin_workout_push_cli import _filter_sessions_to_window
 
         sessions = [_session("not-a-date"), _session("2026-08-10")]
         result = _filter_sessions_to_window(sessions, "2026-08-09")
@@ -94,7 +94,7 @@ class TestFilterSessionsToWindow:
 
 class TestReviewSessionsToPush:
     def test_default_confirm_pushes_all_checked(self):
-        from cli.garmin_ai_coach_cli import review_sessions_to_push
+        from cli.garmin_workout_push_cli import review_sessions_to_push
 
         sessions = [_session("2026-08-11"), _session("2026-08-13")]
         with patch("builtins.input", return_value=""):
@@ -103,7 +103,7 @@ class TestReviewSessionsToPush:
         assert selected == sessions
 
     def test_toggle_then_confirm_excludes_toggled_session(self):
-        from cli.garmin_ai_coach_cli import review_sessions_to_push
+        from cli.garmin_workout_push_cli import review_sessions_to_push
 
         sessions = [_session("2026-08-11"), _session("2026-08-13")]
         with patch("builtins.input", side_effect=["2", ""]):
@@ -112,7 +112,7 @@ class TestReviewSessionsToPush:
         assert selected == [sessions[0]]
 
     def test_cancel_returns_empty_list(self):
-        from cli.garmin_ai_coach_cli import review_sessions_to_push
+        from cli.garmin_workout_push_cli import review_sessions_to_push
 
         sessions = [_session("2026-08-11")]
         with patch("builtins.input", return_value="q"):
@@ -121,7 +121,7 @@ class TestReviewSessionsToPush:
         assert selected == []
 
     def test_empty_sessions_returns_immediately_without_prompting(self):
-        from cli.garmin_ai_coach_cli import review_sessions_to_push
+        from cli.garmin_workout_push_cli import review_sessions_to_push
 
         with patch("builtins.input") as mock_input:
             selected = review_sessions_to_push([])
@@ -133,7 +133,7 @@ class TestReviewSessionsToPush:
 class TestResolveScheduleConflict:
     @pytest.mark.parametrize("choice,expected", [("e", "keep_existing"), ("r", "replace"), ("b", "keep_both")])
     def test_recognizes_shorthand_choices(self, choice, expected):
-        from cli.garmin_ai_coach_cli import resolve_schedule_conflict
+        from cli.garmin_workout_push_cli import resolve_schedule_conflict
 
         session = _session("2026-08-11")
         existing = [{"name": "Old Ride", "sport": "cycling", "scheduled_at": "2026-08-01T10:00:00"}]
@@ -142,7 +142,7 @@ class TestResolveScheduleConflict:
             assert resolve_schedule_conflict(session, existing) == expected
 
     def test_reprompts_on_invalid_input(self):
-        from cli.garmin_ai_coach_cli import resolve_schedule_conflict
+        from cli.garmin_workout_push_cli import resolve_schedule_conflict
 
         session = _session("2026-08-11")
         existing = [{"name": "Old Ride", "sport": "cycling", "scheduled_at": "2026-08-01T10:00:00"}]
@@ -156,13 +156,13 @@ class TestResolveScheduleConflict:
 
 class TestPushSessionsToGarmin:
     def test_pushes_new_session_and_records_it_in_store(self, tmp_path):
-        from cli.garmin_ai_coach_cli import push_sessions_to_garmin
+        from cli.garmin_workout_push_cli import push_sessions_to_garmin
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         session = _session("2026-08-11", sport="cycling", name="Sweet Spot Ride")
 
-        with patch("cli.garmin_ai_coach_cli.build_garmin_workout", return_value=Mock()), \
-             patch("cli.garmin_ai_coach_cli.GarminWorkoutPublisher") as mock_publisher_cls:
+        with patch("cli.garmin_workout_push_cli.build_garmin_workout", return_value=Mock()), \
+             patch("cli.garmin_workout_push_cli.GarminWorkoutPublisher") as mock_publisher_cls:
             mock_publisher_cls.return_value.publish.return_value = 555
             push_sessions_to_garmin([session], garmin_client=Mock(), power_zones={}, hr_zones={}, store=store)
 
@@ -171,20 +171,20 @@ class TestPushSessionsToGarmin:
         assert saved["2026-08-11"][0]["name"] == "Sweet Spot Ride"
 
     def test_skips_session_when_workout_cannot_be_built(self, tmp_path):
-        from cli.garmin_ai_coach_cli import push_sessions_to_garmin
+        from cli.garmin_workout_push_cli import push_sessions_to_garmin
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         session = _session("2026-08-11")
 
-        with patch("cli.garmin_ai_coach_cli.build_garmin_workout", return_value=None), \
-             patch("cli.garmin_ai_coach_cli.GarminWorkoutPublisher") as mock_publisher_cls:
+        with patch("cli.garmin_workout_push_cli.build_garmin_workout", return_value=None), \
+             patch("cli.garmin_workout_push_cli.GarminWorkoutPublisher") as mock_publisher_cls:
             push_sessions_to_garmin([session], garmin_client=Mock(), power_zones={}, hr_zones={}, store=store)
 
         mock_publisher_cls.return_value.publish.assert_not_called()
         assert store.load("cli_user") == {}
 
     def test_conflict_keep_existing_skips_the_new_push(self, tmp_path):
-        from cli.garmin_ai_coach_cli import push_sessions_to_garmin
+        from cli.garmin_workout_push_cli import push_sessions_to_garmin
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         store.save("cli_user", {
@@ -192,9 +192,9 @@ class TestPushSessionsToGarmin:
         })
         session = _session("2026-08-11", name="New Ride")
 
-        with patch("cli.garmin_ai_coach_cli.resolve_schedule_conflict", return_value="keep_existing"), \
-             patch("cli.garmin_ai_coach_cli.build_garmin_workout") as mock_build, \
-             patch("cli.garmin_ai_coach_cli.GarminWorkoutPublisher") as mock_publisher_cls:
+        with patch("cli.garmin_workout_push_cli.resolve_schedule_conflict", return_value="keep_existing"), \
+             patch("cli.garmin_workout_push_cli.build_garmin_workout") as mock_build, \
+             patch("cli.garmin_workout_push_cli.GarminWorkoutPublisher") as mock_publisher_cls:
             push_sessions_to_garmin([session], garmin_client=Mock(), power_zones={}, hr_zones={}, store=store)
 
         mock_build.assert_not_called()
@@ -203,7 +203,7 @@ class TestPushSessionsToGarmin:
         assert saved["2026-08-11"][0]["name"] == "Old Ride"  # untouched
 
     def test_conflict_replace_deletes_old_and_pushes_new(self, tmp_path):
-        from cli.garmin_ai_coach_cli import push_sessions_to_garmin
+        from cli.garmin_workout_push_cli import push_sessions_to_garmin
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         store.save("cli_user", {
@@ -211,9 +211,9 @@ class TestPushSessionsToGarmin:
         })
         session = _session("2026-08-11", name="New Ride")
 
-        with patch("cli.garmin_ai_coach_cli.resolve_schedule_conflict", return_value="replace"), \
-             patch("cli.garmin_ai_coach_cli.build_garmin_workout", return_value=Mock()), \
-             patch("cli.garmin_ai_coach_cli.GarminWorkoutPublisher") as mock_publisher_cls:
+        with patch("cli.garmin_workout_push_cli.resolve_schedule_conflict", return_value="replace"), \
+             patch("cli.garmin_workout_push_cli.build_garmin_workout", return_value=Mock()), \
+             patch("cli.garmin_workout_push_cli.GarminWorkoutPublisher") as mock_publisher_cls:
             mock_publisher = mock_publisher_cls.return_value
             mock_publisher.publish.return_value = 222
             push_sessions_to_garmin([session], garmin_client=Mock(), power_zones={}, hr_zones={}, store=store)
@@ -225,7 +225,7 @@ class TestPushSessionsToGarmin:
         assert saved["2026-08-11"][0]["name"] == "New Ride"
 
     def test_conflict_keep_both_leaves_old_and_adds_new(self, tmp_path):
-        from cli.garmin_ai_coach_cli import push_sessions_to_garmin
+        from cli.garmin_workout_push_cli import push_sessions_to_garmin
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         store.save("cli_user", {
@@ -233,9 +233,9 @@ class TestPushSessionsToGarmin:
         })
         session = _session("2026-08-11", name="New Ride")
 
-        with patch("cli.garmin_ai_coach_cli.resolve_schedule_conflict", return_value="keep_both"), \
-             patch("cli.garmin_ai_coach_cli.build_garmin_workout", return_value=Mock()), \
-             patch("cli.garmin_ai_coach_cli.GarminWorkoutPublisher") as mock_publisher_cls:
+        with patch("cli.garmin_workout_push_cli.resolve_schedule_conflict", return_value="keep_both"), \
+             patch("cli.garmin_workout_push_cli.build_garmin_workout", return_value=Mock()), \
+             patch("cli.garmin_workout_push_cli.GarminWorkoutPublisher") as mock_publisher_cls:
             mock_publisher = mock_publisher_cls.return_value
             mock_publisher.publish.return_value = 222
             push_sessions_to_garmin([session], garmin_client=Mock(), power_zones={}, hr_zones={}, store=store)
@@ -248,17 +248,17 @@ class TestPushSessionsToGarmin:
 class TestCollectAndPushGarminWorkouts:
     @pytest.mark.asyncio
     async def test_filters_window_then_reviews_then_pushes(self, tmp_path):
-        from cli.garmin_ai_coach_cli import collect_and_push_garmin_workouts
+        from cli.garmin_workout_push_cli import collect_and_push_garmin_workouts
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
         in_window = _session("2026-08-11", name="In Window")
         out_of_window = _session("2026-12-01", name="Out Of Window")
 
         with patch(
-            "cli.garmin_ai_coach_cli.extract_planned_sessions",
+            "cli.garmin_workout_push_cli.extract_planned_sessions",
             new=AsyncMock(return_value=[in_window, out_of_window]),
-        ), patch("cli.garmin_ai_coach_cli.review_sessions_to_push", return_value=[in_window]) as mock_review, \
-           patch("cli.garmin_ai_coach_cli.push_sessions_to_garmin") as mock_push:
+        ), patch("cli.garmin_workout_push_cli.review_sessions_to_push", return_value=[in_window]) as mock_review, \
+           patch("cli.garmin_workout_push_cli.push_sessions_to_garmin") as mock_push:
             await collect_and_push_garmin_workouts(
                 "plan markdown", {}, {}, garmin_client=Mock(), current_date_iso="2026-08-09", store=store,
             )
@@ -270,17 +270,94 @@ class TestCollectAndPushGarminWorkouts:
 
     @pytest.mark.asyncio
     async def test_no_sessions_found_skips_review_and_push(self, tmp_path):
-        from cli.garmin_ai_coach_cli import collect_and_push_garmin_workouts
+        from cli.garmin_workout_push_cli import collect_and_push_garmin_workouts
 
         store = ScheduledWorkoutsStore(base_dir=str(tmp_path))
 
         with patch(
-            "cli.garmin_ai_coach_cli.extract_planned_sessions", new=AsyncMock(return_value=[])
-        ), patch("cli.garmin_ai_coach_cli.review_sessions_to_push") as mock_review, \
-           patch("cli.garmin_ai_coach_cli.push_sessions_to_garmin") as mock_push:
+            "cli.garmin_workout_push_cli.extract_planned_sessions", new=AsyncMock(return_value=[])
+        ), patch("cli.garmin_workout_push_cli.review_sessions_to_push") as mock_review, \
+           patch("cli.garmin_workout_push_cli.push_sessions_to_garmin") as mock_push:
             await collect_and_push_garmin_workouts(
                 "plan markdown", {}, {}, garmin_client=Mock(), current_date_iso="2026-08-09", store=store,
             )
 
         mock_review.assert_not_called()
         mock_push.assert_not_called()
+
+
+class TestLoadWeeklyPlan:
+    def test_explicit_plan_path_is_read(self, tmp_path):
+        from cli.garmin_workout_push_cli import load_weekly_plan
+
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text("# 28-Day Plan", encoding="utf-8")
+
+        content, source = load_weekly_plan(plan_file)
+
+        assert content == "# 28-Day Plan"
+        assert source == str(plan_file)
+
+    def test_missing_explicit_plan_path_returns_none(self, tmp_path):
+        from cli.garmin_workout_push_cli import load_weekly_plan
+
+        content, _ = load_weekly_plan(tmp_path / "missing.md")
+
+        assert content is None
+
+    def test_defaults_to_latest_plan_saved_by_coach_run(self, tmp_path, monkeypatch):
+        from cli.garmin_workout_push_cli import load_weekly_plan
+        from services.ai.utils.plan_storage import FilePlanStorage
+
+        monkeypatch.chdir(tmp_path)
+        FilePlanStorage().save_plan("cli_user", "weekly_plan", "# Latest Plan")
+
+        content, source = load_weekly_plan()
+
+        assert content == "# Latest Plan"
+        assert source.endswith("cli_user/weekly_plan.md")
+
+
+class TestRunPushFromConfig:
+    @pytest.mark.asyncio
+    async def test_pushes_stored_plan_with_live_zones_from_today(self, tmp_path, monkeypatch):
+        from datetime import date
+
+        from cli.garmin_workout_push_cli import run_push_from_config
+
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "config.yaml"
+        config.write_text(
+            "athlete:\n  email: a@b.c\n  power_zones: {}\n  hr_zones: {}\n"
+            "credentials:\n  password: secret\n",
+            encoding="utf-8",
+        )
+        plan = tmp_path / "plan.md"
+        plan.write_text("# Plan", encoding="utf-8")
+
+        with patch("cli.garmin_workout_push_cli.TriathlonCoachDataExtractor") as mock_extractor_cls, \
+             patch("cli.garmin_workout_push_cli.collect_and_push_garmin_workouts", new=AsyncMock()) as mock_push:
+            mock_extractor = mock_extractor_cls.return_value
+            mock_extractor.get_training_thresholds.return_value = TrainingThresholds(ftp_watts=250.0)
+            await run_push_from_config(config, plan)
+
+        mock_extractor_cls.assert_called_once_with("a@b.c", "secret")
+        args = mock_push.call_args.args
+        assert args[0] == "# Plan"
+        assert args[1]["z4_threshold"]["min_watts"] == round(250.0 * 0.90)  # live FTP zones
+        assert args[3] is mock_extractor.garmin
+        assert args[4] == date.today().isoformat()
+
+    @pytest.mark.asyncio
+    async def test_missing_plan_fails_before_logging_in(self, tmp_path, monkeypatch):
+        from cli.garmin_workout_push_cli import run_push_from_config
+
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "config.yaml"
+        config.write_text("athlete:\n  email: a@b.c\n", encoding="utf-8")
+
+        with patch("cli.garmin_workout_push_cli.TriathlonCoachDataExtractor") as mock_extractor_cls, \
+             pytest.raises(FileNotFoundError):
+            await run_push_from_config(config)
+
+        mock_extractor_cls.assert_not_called()

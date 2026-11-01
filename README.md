@@ -168,6 +168,19 @@ Generated files in `output.directory` (default: `./data`):
 - `season_plan.md`, `weekly_plan.md` — intermediate planning artifacts
 - `summary.json` — metadata + cost summary (`trace_id` / `root_run_id` when LangSmith is enabled)
 
+### Push the plan to Garmin Connect
+
+Scheduling the plan as Garmin workouts is a separate command, so you can run it any time after the coach (or rerun it later without regenerating the plan):
+
+```bash
+pixi run coach-push --config my_training_config.yaml                # latest plan saved by the coach run
+pixi run coach-push --config my_training_config.yaml --plan plan.md # or a specific plan file
+```
+
+It extracts each day's primary session from today through the next 28 days, shows a checklist to toggle sessions, and asks before replacing anything it scheduled on the same day in a previous push. Running/cycling/swimming become zone-targeted workouts (live Garmin FTP/LTHR preferred, config zones as fallback); other sessions become simple calendar entries.
+
+> 💰 **`coach-push` consumes API tokens.** Turning the written plan into structured workouts is one LLM call per run, using the workout model of your configured `ai_mode` (e.g. Claude Sonnet 4.6 in `development`, Haiku 4.5 in `cost_effective`). For a typical 28-day plan that's roughly ~6k input / ~5k output tokens — about **$0.05–0.15 per run** in `development` mode (less with `cost_effective`, more with `anthropic_pro`/`pro`). The extraction is not cached, so each rerun on the same plan is charged again. Logging in to Garmin and pushing the workouts themselves cost nothing.
+
 ---
 
 ## 🎛️ Providers & Model Selection

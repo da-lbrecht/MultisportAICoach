@@ -7,9 +7,9 @@ from services.garmin.models import Activity, ActivitySummary, GarminData, Gear
 
 
 @pytest.mark.asyncio
-@patch("services.ai.langgraph.workflows.planning_workflow.run_complete_analysis_and_planning", new_callable=AsyncMock)
-@patch("services.garmin.TriathlonCoachDataExtractor")
-@patch("services.outside.client.OutsideApiGraphQlClient")
+@patch("cli.garmin_ai_coach_cli.run_complete_analysis_and_planning", new_callable=AsyncMock)
+@patch("cli.garmin_ai_coach_cli.TriathlonCoachDataExtractor")
+@patch("cli.garmin_ai_coach_cli.OutsideApiGraphQlClient")
 async def test_cli_e2e_smoke_with_mocks(
     mock_outside_client,
     mock_extractor_class,
@@ -39,7 +39,6 @@ async def test_cli_e2e_smoke_with_mocks(
     mock_outside_instance = mock_outside_client.return_value
     mock_outside_instance.get_competitions.return_value = []
 
-    # Import after patches are in place
     from cli.garmin_ai_coach_cli import run_analysis_from_config
 
     output_directory = tmp_path / "out"
@@ -84,9 +83,9 @@ credentials:
 
 
 @pytest.mark.asyncio
-@patch("services.ai.langgraph.workflows.planning_workflow.run_complete_analysis_and_planning", new_callable=AsyncMock)
-@patch("services.garmin.TriathlonCoachDataExtractor")
-@patch("services.outside.client.OutsideApiGraphQlClient")
+@patch("cli.garmin_ai_coach_cli.run_complete_analysis_and_planning", new_callable=AsyncMock)
+@patch("cli.garmin_ai_coach_cli.TriathlonCoachDataExtractor")
+@patch("cli.garmin_ai_coach_cli.OutsideApiGraphQlClient")
 @patch("getpass.getpass", return_value="dummy")
 @patch("builtins.input", side_effect=["My goal is to complete a marathon"])
 async def test_cli_e2e_with_hitl_enabled(
@@ -120,7 +119,6 @@ async def test_cli_e2e_with_hitl_enabled(
     mock_outside_instance = mock_outside_client.return_value
     mock_outside_instance.get_competitions.return_value = []
 
-    # Import after patches are in place
     from cli.garmin_ai_coach_cli import run_analysis_from_config
 
     output_directory = tmp_path / "out_hitl"

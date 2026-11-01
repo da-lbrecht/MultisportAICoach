@@ -61,6 +61,7 @@ dead-code-verbose = "vulture --config vulture.toml --verbose"
 # CLI coach interface
 coach-cli = "python cli/garmin_ai_coach_cli.py"
 coach-init = "python cli/garmin_ai_coach_cli.py --init-config"
+coach-push = "python cli/garmin_workout_push_cli.py"
 
 [environments]
 default = { solve-group = "default" }
